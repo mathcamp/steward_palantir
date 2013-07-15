@@ -156,7 +156,7 @@ class IDictStorage(IStorage):
         return result
 
     def get_alerts(self):
-        return self.db.get('alerts')
+        return self.db.get('alerts', [])
 
     def add_alert(self, minion, check):
         alerts = self.db.get('alerts', [])
