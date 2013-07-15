@@ -1,0 +1,7 @@
+* Resolve alerts
+* Server list should return data dict, not just names
+* Ability to see which checks will apply to which servers
+* Web interface
+* Stagger checks
+* Silence checks
+* Global defaults for handlers

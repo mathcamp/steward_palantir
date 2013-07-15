@@ -1,0 +1,13 @@
+hello:
+  target: "*"
+  command:
+    cmd: echo "hello {{ grains['id'] }}!"
+    template: jinja
+    timeout: 1
+
+  handlers:
+    - log:
+        log_success: true
+      
+  schedule:
+    seconds: 5
