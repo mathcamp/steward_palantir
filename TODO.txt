@@ -1,7 +1,6 @@
-* Server list should return data dict, not just names
-* Ability to see which checks will apply to which servers
 * Ability to silence checks/minions
 * More complete documentation
+* More handlers
 * Web interface
 * Stagger checks
 * Global defaults for handlers

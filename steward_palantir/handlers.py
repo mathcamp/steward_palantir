@@ -6,7 +6,7 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
-def log_handler(request, minion, check, status, log_success=False):
+def log_handler(request, minion, check, status, is_alert, log_success=False):
     """
     Check handler that logs the result of a check
 
@@ -31,7 +31,7 @@ def log_handler(request, minion, check, status, log_success=False):
     fxn("%s check '%s' %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
         check, msg, status['retcode'], status['stdout'], status['stderr'])
 
-def absorb(request, minion, check, status, success=False, warn=False, count=1,
+def absorb(request, minion, check, status, is_alert, success=False, warn=False, alerts=False, count=1,
         success_count=1, out_match=None, err_match=None,
         out_err_match=None):
     """
@@ -43,6 +43,8 @@ def absorb(request, minion, check, status, success=False, warn=False, count=1,
         Absorb checks that pass (default False)
     warn : bool, optional
         Absorb checks that are warnings (status code 1) (default False)
+    alerts : bool, optional
+        Absorb checks that are already alerts (default False)
     count : int, optional
         Absorb non-success checks unless the check has returned that result
         this many times (default 1)
@@ -77,6 +79,8 @@ def absorb(request, minion, check, status, success=False, warn=False, count=1,
     if status['retcode'] != 0 and status['count'] < count:
         return True
     if status['retcode'] == 0 and status['count'] < success_count:
+        return True
+    if is_alert and alerts:
         return True
     if out_match and re.match(out_match, status['stdout']):
         return True

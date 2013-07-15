@@ -50,6 +50,7 @@ def run_check(request):
         check_result[minion] = status
 
         # Run all the event handlers
+        is_alert = request.palantir_db.is_alert(minion, check_name)
         absorbed = False
         for handler_dict in check.handlers:
             handler_name, params = handler_dict.items()[0]
@@ -58,7 +59,7 @@ def run_check(request):
             handler = request.registry.palantir_handlers[handler_name]
             try:
                 handler_result = handler(request, minion, check, status,
-                                         **params)
+                                         is_alert, **params)
                 # If the handler returns True, don't pass to further handlers
                 if handler_result is True:
                     absorbed = True
@@ -68,7 +69,6 @@ def run_check(request):
 
         # Create/resolve alerts
         if not absorbed:
-            is_alert = request.palantir_db.is_alert(minion, check_name)
             if status['retcode'] == 0 and is_alert:
                 status['reason'] = 'Check passing'
                 request.subreq('pub', name='palantir/alert/resolve',
@@ -92,7 +92,14 @@ def run_check(request):
              permission='palantir_read')
 def list_checks(request):
     """ List all available checks """
-    return request.registry.palantir_checks
+    checks = request.registry.palantir_checks
+    json_checks = {}
+    for name, check in checks.iteritems():
+        data = check.__json__(request)
+        data['minions'] = request.subreq('salt_match', tgt=check.target,
+                                          expr_form=check.expr_form)
+        json_checks[name] = data
+    return json_checks
 
 @view_config(route_name='palantir_get_check', renderer='json',
              permission='palantir_read')
@@ -154,3 +161,16 @@ def delete_minion(request):
     minion = request.param('minion')
     request.palantir_db.delete_minion(minion)
     return request.response
+
+@view_config(route_name='palantir_get_minion', renderer='json',
+             permission='palantir_read')
+def get_minion(request):
+    """ Get the checks that will run on a minion """
+    minion = request.param('minion')
+    checks = []
+    for check in request.registry.palantir_checks.itervalues():
+        minions = request.subreq('salt_match', tgt=check.target,
+                                            expr_form=check.expr_form)
+        if minions is not None and minion in minions:
+            checks.append(check)
+    return checks

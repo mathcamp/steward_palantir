@@ -20,12 +20,15 @@ def include_client(client):
     """ Add methods to the client """
     client.set_cmd('palantir.alerts', 'steward_palantir.client.do_alerts')
     client.set_cmd('palantir.checks', 'steward_palantir.client.do_checks')
+    client.set_cmd('palantir.minion', 'steward_palantir.client.do_minion')
     client.set_cmd('palantir.run_check', 'steward_palantir.client.do_run_check')
     client.set_cmd('palantir.resolve', 'steward_palantir.client.do_resolve')
     try:
         response = client.cmd('palantir/check/list').json()
         client.set_autocomplete('palantir.run_check', response)
         client.set_autocomplete('palantir.checks', response)
+        response = client.cmd('palantir/minion/list').json()
+        client.set_autocomplete('palantir.minion', response)
     except:
         # autocomplete isn't mandatory
         pass
@@ -86,6 +89,7 @@ def includeme(config):
     config.add_route('palantir_resolve_alert', '/palantir/alert/resolve')
 
     config.add_route('palantir_list_minions', '/palantir/minion/list')
+    config.add_route('palantir_get_minion', '/palantir/minion/get')
     config.add_route('palantir_delete_minion', '/palantir/minion/delete')
 
     config.add_route('palantir_list_handlers', '/palantir/handler/list')

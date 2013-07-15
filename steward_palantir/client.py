@@ -45,6 +45,18 @@ def do_checks(client, check=None):
     else:
         pprint(response[check])
 
+def do_minion(client, minion):
+    """
+    List the checks that will be run on the minion
+
+    Parameters
+    ----------
+    minion : str
+
+    """
+    response = client.cmd('palantir/minion/get', minion=minion).json()
+    print ', '.join([check['name'] for check in response])
+
 def do_run_check(client, check):
     """
     Run a Palantir check
