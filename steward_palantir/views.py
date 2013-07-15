@@ -22,13 +22,27 @@ def run_check(request):
 
     check = request.registry.palantir_checks[check_name]
 
+    expected_minions = request.subreq('salt_match', tgt=check.target,
+            expr_form=check.expr_form)
     response = request.subreq('salt', tgt=check.target, cmd='cmd.run_all',
                               kwarg=check.command, expr_form=check.expr_form,
                               timeout=check.timeout)
 
+    if expected_minions is None:
+        expected_minions = response.keys()
+
+    combined_minions = set(expected_minions).union(set(response.keys()))
+
     # Process results for each minion
     check_result = {}
-    for minion, result in response.iteritems():
+    for minion in combined_minions:
+        # Get the response. If no response, replace it with a 'salt timeout'
+        # message
+        result = response.get(minion, {
+            'retcode': 1000,
+            'stdout': '',
+            'stderr': '<< SALT TIMED OUT >>',
+        })
         status = request.palantir_db.add_check_result(minion, check_name,
                                                       result['retcode'],
                                                       result['stdout'],
@@ -64,6 +78,13 @@ def run_check(request):
                 request.subreq('pub', name='palantir/alert/create',
                                data=status)
                 request.palantir_db.add_alert(minion, check_name)
+
+    if expected_minions is not None:
+        for minion in expected_minions:
+            if minion in response:
+                continue
+            # These are the minions that timed out
+
 
     return check_result
 
