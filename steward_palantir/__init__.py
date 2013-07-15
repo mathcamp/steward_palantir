@@ -21,9 +21,13 @@ def include_client(client):
     client.set_cmd('palantir.alerts', 'steward_palantir.client.do_alerts')
     client.set_cmd('palantir.checks', 'steward_palantir.client.do_checks')
     client.set_cmd('palantir.run_check', 'steward_palantir.client.do_run_check')
-    response = client.cmd('palantir/check/list').json()
-    client.set_autocomplete('palantir.run_check', response)
-    client.set_autocomplete('palantir.checks', response)
+    try:
+        response = client.cmd('palantir/check/list').json()
+        client.set_autocomplete('palantir.run_check', response)
+        client.set_autocomplete('palantir.checks', response)
+    except:
+        # autocomplete isn't mandatory
+        pass
 
 def includeme(config):
     """ Configure the app """
