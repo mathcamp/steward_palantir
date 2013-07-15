@@ -48,9 +48,9 @@ class IStorage(object):
         """
         raise NotImplementedError
 
-    def is_alert(self, minion, check):
+    def last_retcode(self, minion, check, handler_idx):
         """
-        See if a particular check is failing
+        Get the last retcode that a handler saw for a unique minion, check pair
 
         Parameters
         ----------
@@ -58,10 +58,30 @@ class IStorage(object):
             Name of the minion
         check : str
             Name of the check
+        handler_idx : int
+            Index of the handler in the check's 'handlers' section
 
         Returns
         -------
-        is_alert : bool
+        retcode : int
+
+        """
+        raise NotImplementedError
+
+    def set_last_retcode(self, minion, check, handler_idx, retcode):
+        """
+        Set the last retcode that a handler saw for a unique minion, check pair
+
+        Parameters
+        ----------
+        minion : str
+            Name of the minion
+        check : str
+            Name of the check
+        handler_idx : int
+            Index of the handler in the check's 'handlers' section
+        retcode : int
+            The return code that was last seen by the handler
 
         """
         raise NotImplementedError
@@ -192,8 +212,13 @@ class IDictStorage(IStorage):
     def get_alerts(self):
         return self.db.get('alerts', [])
 
-    def is_alert(self, minion, check):
-        return (minion, check) in self.db.get('alerts', [])
+    def last_retcode(self, minion, check, handler_idx):
+        return self.db.get('_'.join([minion, check, str(handler_idx)]), 0)
+
+    def set_last_retcode(self, minion, check, handler_idx, retcode):
+        key = '_'.join([minion, check, str(handler_idx)])
+        self.db[key] = retcode
+        self._add_minion_key(minion, key)
 
     def add_alert(self, minion, check):
         alerts = self.db.get('alerts', [])
@@ -232,7 +257,18 @@ class IDictStorage(IStorage):
 
 
 class MemoryStorage(IDictStorage):
-    """ Simple in-memory storage """
+    """
+    Simple in-memory storage
+
+    Notes
+    =====
+    This is suitable for testing only
+
+    .. warning::
+        If your server spawns multiple threads and/or processes, this storage
+        backend will not work properly and you will be a sad panda.
+
+    """
     @property
     def db(self):
         """ Accessor for in-memory dict """
@@ -242,7 +278,17 @@ class MemoryStorage(IDictStorage):
 
 
 class SqliteDictStorage(IDictStorage):
-    """ Storage system using steward_sqlitedict """
+    """
+    Storage system using steward_sqlitedict
+
+    Notes
+    =====
+    .. warning::
+        There are known race conditions in this storage backend. Data integrity
+        is not *super* important, so it can still operate reasonably well, but
+        be aware that it's not perfect.
+
+    """
     @property
     def db(self):
         """ Accessor for sqlitedict """

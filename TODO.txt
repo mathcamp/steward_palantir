@@ -1,4 +1,4 @@
-* Ability to silence checks/minions
+* Ability to disable checks/minions
 * More complete documentation
 * More handlers
 * Web interface
