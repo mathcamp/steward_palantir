@@ -21,6 +21,7 @@ def include_client(client):
     client.set_cmd('palantir.alerts', 'steward_palantir.client.do_alerts')
     client.set_cmd('palantir.checks', 'steward_palantir.client.do_checks')
     client.set_cmd('palantir.run_check', 'steward_palantir.client.do_run_check')
+    client.set_cmd('palantir.resolve', 'steward_palantir.client.do_resolve')
     try:
         response = client.cmd('palantir/check/list').json()
         client.set_autocomplete('palantir.run_check', response)

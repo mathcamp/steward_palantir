@@ -1,6 +1,6 @@
 """ Client commands """
 from pprint import pprint
-from steward.colors import green, red
+from steward.colors import green, red, yellow
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
@@ -20,8 +20,13 @@ def _format_check_status(status):
 def do_alerts(client):
     """ Print all active alerts """
     response = client.cmd('palantir/alert/list').json()
+    # Sort by minion, then by check name
+    response.sort(key=lambda x:x['check'])
+    response.sort(key=lambda x:x['minion'])
     for alert in response:
-        print "{} - {}: {}".format(red(alert['minion']), red(alert['check']),
+        color = yellow if alert['retcode'] == 1 else red
+        print "{} - {}: {}".format(color(alert['minion']),
+                                   color(alert['check']),
                                    _format_check_status(alert))
 
 def do_checks(client, check=None):
@@ -53,3 +58,17 @@ def do_run_check(client, check):
     response = client.cmd('palantir/check/run', name=check).json()
     for minion, result in response.iteritems():
         print '{}: {}'.format(green(minion), _format_check_status(result))
+
+def do_resolve(client, minion, check):
+    """
+    Mark an alert as resolved
+
+    Parameters
+    ----------
+    minion : str
+        Name of the minion
+    check : str
+        Name of the check
+
+    """
+    client.cmd('palantir/alert/resolve', minion=minion, check=check)

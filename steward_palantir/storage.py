@@ -48,6 +48,24 @@ class IStorage(object):
         """
         raise NotImplementedError
 
+    def is_alert(self, minion, check):
+        """
+        See if a particular check is failing
+
+        Parameters
+        ----------
+        minion : str
+            Name of the minion
+        check : str
+            Name of the check
+
+        Returns
+        -------
+        is_alert : bool
+
+        """
+        raise NotImplementedError
+
     def add_alert(self, minion, check):
         """
         Mark a check as failing
@@ -65,6 +83,22 @@ class IStorage(object):
     def remove_alert(self, minion, check):
         """
         Mark a check as no longer failing
+
+        Parameters
+        ----------
+        minion : str
+            Name of the minion
+        check : str
+            Name of the check
+
+        """
+        raise NotImplementedError
+
+    def reset_check(self, minion, check):
+        """
+        Reset the status of a check
+
+        This should essentially delete all history and current status
 
         Parameters
         ----------
@@ -158,6 +192,9 @@ class IDictStorage(IStorage):
     def get_alerts(self):
         return self.db.get('alerts', [])
 
+    def is_alert(self, minion, check):
+        return (minion, check) in self.db.get('alerts', [])
+
     def add_alert(self, minion, check):
         alerts = self.db.get('alerts', [])
         alerts.append((minion, check))
@@ -167,6 +204,11 @@ class IDictStorage(IStorage):
         alerts = self.db.get('alerts', [])
         alerts.remove((minion, check))
         self.db['alerts'] = alerts
+
+    def reset_check(self, minion, check):
+        key = minion + '_' + check
+        if key in self.db:
+            del self.db[key]
 
     def check_status(self, minion, check):
         return self.db.get(minion + '_' + check)

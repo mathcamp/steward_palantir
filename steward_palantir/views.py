@@ -1,5 +1,6 @@
 """ Endpoints for Palantir """
 import logging
+from pyramid.security import unauthenticated_userid
 from pyramid.view import view_config
 
 
@@ -52,13 +53,14 @@ def run_check(request):
                 LOG.exception("Error running handler '%s'", handler_name)
 
         # Create/resolve alerts
-        if not absorbed and status['count'] == 1:
-            if status['retcode'] == 0:
-                if status['previous'] != 0:
-                    request.subreq('pub', name='palantir/alert/resolve',
-                                   data=status)
-                    request.palantir_db.remove_alert(minion, check_name)
-            else:
+        if not absorbed:
+            is_alert = request.palantir_db.is_alert(minion, check_name)
+            if status['retcode'] == 0 and is_alert:
+                status['reason'] = 'Check passing'
+                request.subreq('pub', name='palantir/alert/resolve',
+                                data=status)
+                request.palantir_db.remove_alert(minion, check_name)
+            elif status['retcode'] != 0 and not is_alert:
                 request.subreq('pub', name='palantir/alert/create',
                                data=status)
                 request.palantir_db.add_alert(minion, check_name)
@@ -98,6 +100,17 @@ def list_alerts(request):
         status['check'] = check
         checks.append(status)
     return checks
+
+@view_config(route_name='palantir_resolve_alert', permission='palantir_write')
+def resolve_alert(request):
+    """ Mark an alert as 'resolved' """
+    minion = request.param('minion')
+    check = request.param('check')
+    request.palantir_db.remove_alert(minion, check)
+    request.palantir_db.reset_check(minion, check)
+    data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
+    request.subreq('pub', name='palantir/alert/resolve', data=data)
+    return request.response
 
 @view_config(route_name='palantir_list_handlers', renderer='json',
              permission='palantir_read')
