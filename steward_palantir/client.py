@@ -1,15 +1,15 @@
 """ Client commands """
 from pprint import pprint
-from steward.colors import green, red, yellow
+from steward.colors import green, red, yellow, magenta
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
     if status['retcode'] == 0:
-        string = "SUCCESS"
+        string = green("SUCCESS")
     elif status['retcode'] == 1:
-        string = "WARNING"
+        string = yellow("WARNING")
     else:
-        string = "ERROR(%d)" % status['retcode']
+        string = red("ERROR(%d)" % status['retcode'])
 
     if status.get('stdout'):
         string += "\nSTDOUT:\n{}".format(status['stdout'])
@@ -45,17 +45,32 @@ def do_checks(client, check=None):
     else:
         pprint(response[check])
 
-def do_minion(client, minion):
+def do_status(client, minion, check=None):
     """
-    List the checks that will be run on the minion
+    Print the result of the last check on a minion
 
     Parameters
     ----------
     minion : str
+        Name of the minion
+    check : str, optional
+        Name of the check. If not provided, print all checks.
 
     """
-    response = client.cmd('palantir/minion/get', minion=minion).json()
-    print ', '.join([check['name'] for check in response])
+    if check is None:
+        response = client.cmd('palantir/minion/get', minion=minion).json()
+        for name, check in response.iteritems():
+            header = name
+            print magenta('-' * len(name))
+            print magenta(header)
+            print _format_check_status(check)
+    else:
+        response = client.cmd('palantir/check/get', minion=minion,
+                            check=check).json()
+        if response is None:
+            print "Check %s not found on %s" % (check, minion)
+            return
+        print _format_check_status(response)
 
 def do_run_check(client, check):
     """

@@ -20,18 +20,18 @@ def include_client(client):
     """ Add methods to the client """
     client.set_cmd('palantir.alerts', 'steward_palantir.client.do_alerts')
     client.set_cmd('palantir.checks', 'steward_palantir.client.do_checks')
-    client.set_cmd('palantir.minion', 'steward_palantir.client.do_minion')
+    client.set_cmd('palantir.status', 'steward_palantir.client.do_status')
     client.set_cmd('palantir.run_check', 'steward_palantir.client.do_run_check')
     client.set_cmd('palantir.resolve', 'steward_palantir.client.do_resolve')
     try:
-        response = client.cmd('palantir/check/list').json()
-        client.set_autocomplete('palantir.run_check', response)
-        client.set_autocomplete('palantir.checks', response)
-        response = client.cmd('palantir/minion/list').json()
-        client.set_autocomplete('palantir.minion', response)
+        checks = client.cmd('palantir/check/list').json().keys()
+        client.set_autocomplete('palantir.run_check', checks)
+        client.set_autocomplete('palantir.checks', checks)
+        minions = client.cmd('palantir/minion/list').json()
+        client.set_autocomplete('palantir.status', minions + checks)
     except:
         # autocomplete isn't mandatory
-        pass
+        LOG.warn("Failed to load palantir autocomplete")
 
 def includeme(config):
     """ Configure the app """

@@ -135,10 +135,4 @@ def delete_minion(request):
 def get_minion(request):
     """ Get the checks that will run on a minion """
     minion = request.param('minion')
-    checks = []
-    for check in request.registry.palantir_checks.itervalues():
-        minions = request.subreq('salt_match', tgt=check.target,
-                                            expr_form=check.expr_form)
-        if minions is not None and minion in minions:
-            checks.append(check)
-    return checks
+    return request.palantir_db.minion_checks(minion)

@@ -1,7 +1,6 @@
 Immediate
 =========
 * Ability to disable checks/minions
-* Jinja templating of handler arguments (e.g. emails with context)
 
 Future
 ======

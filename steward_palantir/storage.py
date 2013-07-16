@@ -144,6 +144,24 @@ class IStorage(object):
         """
         raise NotImplementedError
 
+    def minion_checks(self, minion):
+        """
+        Get a list of all the checks that have run on the minion
+
+        Parameters
+        ----------
+        minion : str
+            Namem of the minion
+
+        Returns
+        -------
+        checks : dict
+            Dict that maps check name to the data dict returned by
+            ``check_status``.
+
+        """
+        raise NotImplementedError
+
     def check_status(self, minion, check):
         """
         Get the stored check data for a minion
@@ -207,8 +225,13 @@ class IDictStorage(IStorage):
         if minion_check not in self.db:
             self._add_minion_key(minion, minion_check)
 
+        checks = self.db.get(minion + '_checks', [])
+        if check not in checks:
+            checks.append(check)
+        self.db[minion + '_checks'] = checks
+
         result = self.db.get(minion_check, {'retcode':0, 'count':0,
-                                             'previous':0})
+                                            'previous':0})
 
         if result['retcode'] == retcode:
             result['count'] += 1
@@ -261,6 +284,12 @@ class IDictStorage(IStorage):
         if key in self.db:
             del self.db[key]
 
+    def minion_checks(self, minion):
+        result = {}
+        for check in self.db.get(minion + '_checks', []):
+            result[check] = self.check_status(minion, check)
+        return result
+
     def check_status(self, minion, check):
         return self.db.get(minion + '_' + check)
 
@@ -269,6 +298,9 @@ class IDictStorage(IStorage):
             if key in self.db:
                 del self.db[key]
         del self.db[minion + '_keys']
+
+        if minion + '_checks' in self.db:
+            del self.db[minion + '_checks']
 
         alerts = self.db.get('alerts', [])
         index = 0

@@ -209,10 +209,10 @@ You can use this for contextual emails::
       - mail:
           subject: {{ check.name }} failed on {{ minion }}
           body: | 
-            {{ check.name }} failed on {{ minion }} with exit code {{ status['retcode'] }}
-            <br />STDOUT:<br />
+            {{ check.name }} check failed on {{ minion }} with exit code {{ status['retcode'] }}
+            STDOUT:
             {{ status['stdout'] }}
-            <br />STDERR:<br />
+            STDERR:
             {{ status['stderr'] }}
 
 Alerts
