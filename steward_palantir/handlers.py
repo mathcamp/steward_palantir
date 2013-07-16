@@ -31,19 +31,21 @@ def log_handler(request, minion, check, status, last_retcode, log_success=False)
     fxn("%s check '%s' %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
         check, msg, status['retcode'], status['stdout'], status['stderr'])
 
-def absorb(request, minion, check, status, last_retcode, success=False,
-           warn=False, only_change=False, only_change_status=False, count=1,
-           success_count=1, out_match=None, err_match=None, out_err_match=None,
-           retcodes=None):
+def absorb(request, minion, check, status, last_retcode, success=None,
+           warn=None, error=None, only_change=False, only_change_status=False,
+           count=1, success_count=1, out_match=None, err_match=None,
+           out_err_match=None, retcodes=None):
     """
     Check handler that acts as a filter and runs before other handlers
 
     Parameters
     ----------
     success : bool, optional
-        Absorb checks that pass (default False)
+        If True, absorb success checks. If False, *never* absorb success checks. (default None)
     warn : bool, optional
-        Absorb checks that are warnings (status code 1) (default False)
+        If True, absorb warnings. If False, *never* absorb warnings. (default None)
+    error : bool, optional
+        If True, absorb errors. If False, *never* absorb errors. (default None)
     only_change : bool, optional
         Absorb checks with the same retcode as the last check (default False)
     only_change_status : bool, optional
@@ -82,10 +84,12 @@ def absorb(request, minion, check, status, last_retcode, success=False,
                 - alert:
 
     """
-    if status['retcode'] == 0 and success:
-        return True
-    if status['retcode'] == 1 and warn:
-        return True
+    if success is not None and status['retcode'] == 0:
+        return success
+    if warn is not None and status['retcode'] == 1:
+        return warn
+    if error is not None and status['retcode'] not in (0, 1):
+        return error
     if status['retcode'] != 0 and status['count'] < count:
         return True
     if status['retcode'] == 0 and status['count'] < success_count:

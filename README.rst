@@ -48,15 +48,16 @@ Configuration
 =============
 ::
 
-    # Persistence backend. Dotted path to an implementation of :class:`steward_palantir.storage.IStorage`.
-    # Required. Default values available are 'memory' and 'sqlitedict'.
+    # Persistence backend. Dotted path to an implementation of
+    # steward_palantir.storage.IStorage. Required. Default values available are
+    # 'memory' and 'sqlitedict'.
     palantir.storage = sqlitedict
 
     # Directory containing the checks. Optional. Default /etc/steward/checks
     palantir.checks_dir = /etc/steward/checks
 
     # Dictionary mapping handler names to dotted paths of a handler function.
-    # Optional. Some handlers are included by default (see :mod:`steward_palantir.handlers`)
+    # Optional. See steward_palantir.handlers for built-in handlers.
     palantir.handlers =
         absorb = steward_palantir.handlers.absorb
 
@@ -75,10 +76,17 @@ Checks
 A check is a collection of data that defines a single assertion that you want
 to make about your system. Here is an annotated example of a complete check::
 
-    mycheck: # The name of a check
-      target: "*" # The salt target to run the check on
-      expr_form: glob # The type of matching to do for salt (default 'glob')
-      timeout: 10 # How long for salt to wait for responses (default 10)
+    # The name of a check
+    mycheck:
+
+      # The salt target to run the check on
+      target: "*"
+
+      # The type of matching to do for salt (default 'glob')
+      expr_form: glob
+
+      # How long for salt to wait for responses (default 10)
+      timeout: 10
 
       # Command to run using the ``cmd.run_all`` salt module. Fields are passed
       # in as keyword arguments. Some basic options are listed below.
@@ -97,7 +105,7 @@ to make about your system. Here is an annotated example of a complete check::
         - alert:
 
       # How frequently to run the check. Fields are passed in as keyword
-      # arguments to :class:`datetime.timedelta`
+      # arguments to datetime.timedelta
       schedule:
         days: 1
         hours: 3
@@ -126,7 +134,7 @@ Handlers
 ========
 Handlers are functions that are run on the result of a check to do alerting,
 logging, filtering, or any other processing. A good place to start for
-reference is the built-in handlers in :mod:`steward_palantir.handlers`. All
+reference is the built-in handlers in ``steward_palantir.handlers``. All
 handlers must take the following arguments:
 
 * **request** - The pyramid Request object
@@ -139,14 +147,14 @@ In addition, your custom handler may also specify any number of keyword
 arguments. Those are the values filled in by the ``handlers`` section of the
 check file.
 
-Handlers may mutate the ``status`` object, which will will change the value
-passed to successive handlers. If a handler returns ``True``, it will stop the
-propagation of the event. Any successive handlers will not be run.
+Handlers may mutate the ``status`` object, which will change the value
+passed to successive handlers. If a handler returns ``True``, it will stop
+running handlers. Any successive handlers will not be run.
 
 Alerts
 ======
 An alert is just an indicator that something is going wrong. Alerts are managed
-with the :meth:`steward_palantir.handlers.alert` handler. It's a useful way to
+with the ``steward_palantir.handlers.alert`` handler. It's a useful way to
 mark checks as failing or not.
 
 When the ``alert`` handler runs, it will create an alert if the check status
@@ -154,6 +162,8 @@ has just changed to a nonzero exit code, and it will resolve alerts if the
 check status has just changed back to 0. When alerts are created or resolve,
 Palantir fires out a Steward event named either 'palantir/alert/create' or
 'palantir/alert/resolve'.
+
+There are a few useful API methods for viewing and manipulating alerts.
 
 Misc
 ====
