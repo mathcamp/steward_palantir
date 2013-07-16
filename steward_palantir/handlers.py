@@ -2,6 +2,7 @@
 import re
 
 import logging
+from jinja2 import Template
 
 
 LOG = logging.getLogger(__name__)
@@ -44,6 +45,12 @@ def fork(request, minion, check, status, handler_id, handlers=None):
         handler = request.registry.palantir_handlers[handler_name]
         try:
             LOG.debug("Running handler '%s'", handler_name)
+            # Render any templated handler parameters
+            for key, value in params.items():
+                if isinstance(value, basestring):
+                    params[key] = Template(value).render(minion=minion,
+                                                         check=check,
+                                                         status=status)
             handler_result = handler(request, minion, check, status,
                                         next_id, **params)
             request.palantir_db.set_last_retcode(minion, check.name,
@@ -150,12 +157,12 @@ def absorb(request, minion, check, status, handler_id, success=None,
                     return True
             except ValueError:
                 split = intrange.split('-')
-                if len(split) == 1:
-                    if status['retcode'] >= split[0]:
-                        return True
-                else:
+                if split[1]:
                     low, high = split
                     if int(low) <= status['retcode'] <= int(high):
+                        return True
+                else:
+                    if status['retcode'] >= int(split[0]):
                         return True
 
 def alert(request, minion, check, status, handler_id, create=None,

@@ -12,6 +12,8 @@ REQUIREMENTS = [
     'steward',
     'steward_salt',
     'PyYAML',
+    'jinja2',
+    'mock',
 ]
 
 DATA = {

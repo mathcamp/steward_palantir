@@ -193,6 +193,28 @@ it contains. Those handlers block propagation from each other as per normal.
 After the fork is complete, the next handler will run. Forks *never* block
 propagation.
 
+Handler Templating
+------------------
+If you pass in an argument to a handler as a string, you may render it using the jinja templating syntax. The available variables are:
+
+* ``check`` - instance of ``steward_palantir.check.Check``
+* ``status`` - dict result containing 'retcode', 'stdout', 'stderr', 'previous', and 'count'
+* ``minion`` - name of the minion
+
+You can use this for contextual emails::
+
+    handlers:
+      - absorb:
+          success: true
+      - mail:
+          subject: {{ check.name }} failed on {{ minion }}
+          body: | 
+            {{ check.name }} failed on {{ minion }} with exit code {{ status['retcode'] }}
+            <br />STDOUT:<br />
+            {{ status['stdout'] }}
+            <br />STDERR:<br />
+            {{ status['stderr'] }}
+
 Alerts
 ======
 An alert is just an indicator that something is going wrong. Alerts are managed
