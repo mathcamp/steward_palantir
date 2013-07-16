@@ -155,7 +155,7 @@ Advanced Handlers
 -----------------
 You may find yourself wanting different handlers to process the check results
 in more and more complex ways. Let's say you want to log all check results that
-do not succeed, and create an alert after it the check fails twice.
+do not succeed, and raise an alert after it the check fails twice.
 
 Here is a pipeline that logs all non-successes::
 
@@ -164,7 +164,7 @@ Here is a pipeline that logs all non-successes::
           success: true
       - log:
 
-And here is a pipeline that creates an alert when the check fails twice::
+And here is a pipeline that raises an alert when the check fails twice::
 
     handlers:
       - absorb:
@@ -221,27 +221,27 @@ An alert is just an indicator that something is going wrong. Alerts are managed
 with the ``steward_palantir.handlers.alert`` handler. It's a useful way to
 mark checks as failing or not.
 
-When the ``alert`` handler runs, it will create an alert if the check status
+When the ``alert`` handler runs, it will raise an alert if the check status
 has just changed to a nonzero exit code, and it will resolve alerts if the
-check status has just changed back to 0. When alerts are created or resolve,
-Palantir fires out a Steward event named either 'palantir/alert/create' or
-'palantir/alert/resolve'.
+check status has just changed back to 0. When alerts are raised or resolved,
+Palantir fires out a Steward event named either 'palantir/alert/raised' or
+'palantir/alert/resolved'.
 
 Alerts also have a helpful shortcut for ``fork``-ing. It allows you to run
-certain handlers if an alert is created or resolved. For example, this handler
-logs the check results and sends and email iff an alert is created or
+certain handlers if an alert is raised or resolved. For example, this handler
+logs the check results and sends and email iff an alert is raised or
 resolved::
 
     handlers:
       - alert:
-          create:
+          raised:
             - log:
             - mail:
                 subject: AAAAAAAHHHH
                 body: AAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
                 mail_from: bot@company.com
                 mail_to: alerts@company.com
-          resolve:
+          resolved:
             - log:
             - mail:
                 subject: ...carry on

@@ -32,7 +32,7 @@ badcheck:
         success: false
     - alert:
         # Log the check if the alert was resolved
-        resolve:
+        resolved:
           - log:
 
   schedule:

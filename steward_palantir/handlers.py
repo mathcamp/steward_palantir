@@ -165,18 +165,18 @@ def absorb(request, minion, check, status, handler_id, success=None,
                     if status['retcode'] >= int(split[0]):
                         return True
 
-def alert(request, minion, check, status, handler_id, create=None,
-          resolve=None):
+def alert(request, minion, check, status, handler_id, raised=None,
+          resolved=None):
     """
-    Create an alert if a check was passing and is now failing
+    Raise an alert if a check was passing and is now failing
 
     Resolve the alert if a check was failing and is now passing
 
     Parameters
     ----------
-    create : list
-        A list of handlers to run if an alert was created
-    resolve : list
+    raised : list
+        A list of handlers to run if an alert was raised
+    resolved : list
         A list of handlers to run if an alert was resolved
 
     """
@@ -185,17 +185,17 @@ def alert(request, minion, check, status, handler_id, create=None,
                                                     handler_id)
     if status['retcode'] == 0 and last_retcode != 0:
         status['reason'] = 'Check passing'
-        request.subreq('pub', name='palantir/alert/resolve',
+        request.subreq('pub', name='palantir/alert/resolved',
                         data=status)
         request.palantir_db.remove_alert(minion, check.name)
-        if resolve is not None:
-            fork(request, minion, check, status, handler_id, resolve)
+        if resolved is not None:
+            fork(request, minion, check, status, handler_id, resolved)
     if status['retcode'] != 0 and last_retcode == 0:
-        request.subreq('pub', name='palantir/alert/create',
+        request.subreq('pub', name='palantir/alert/raised',
                         data=status)
         request.palantir_db.add_alert(minion, check.name)
-        if create is not None:
-            fork(request, minion, check, status, handler_id, create)
+        if raised is not None:
+            fork(request, minion, check, status, handler_id, raised)
 
 def mail(request, minion, check, status, handler_id, **kwargs):
     """

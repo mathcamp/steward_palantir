@@ -105,7 +105,7 @@ def resolve_alert(request):
     request.palantir_db.remove_alert(minion, check)
     request.palantir_db.reset_check(minion, check)
     data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
-    request.subreq('pub', name='palantir/alert/resolve', data=data)
+    request.subreq('pub', name='palantir/alert/resolved', data=data)
     return request.response
 
 @view_config(route_name='palantir_list_handlers', renderer='json',
