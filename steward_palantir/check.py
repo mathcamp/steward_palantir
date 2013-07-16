@@ -79,7 +79,7 @@ class Check(object):
     def __init__(self, name, data):
         self.name = name
         self.target = data['target']
-        self.expr_form = data.get('match', 'glob')
+        self.expr_form = data.get('expr_form', 'glob')
         self.timeout = data.get('timeout', 10)
         self.command = data['command']
         self.schedule = data['schedule']
