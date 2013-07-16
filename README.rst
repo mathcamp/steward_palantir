@@ -151,6 +151,48 @@ Handlers may mutate the ``status`` object, which will change the value
 passed to successive handlers. If a handler returns ``True``, it will stop
 running handlers. Any successive handlers will not be run.
 
+Advanced Handlers
+-----------------
+You may find yourself wanting different handlers to process the check results
+in more and more complex ways. Let's say you want to log all check results that
+do not succeed, and create an alert after it the check fails twice.
+
+Here is a pipeline that logs all non-successes::
+
+    handlers:
+      - absorb:
+          success: true
+      - log:
+
+And here is a pipeline that creates an alert when the check fails twice::
+
+    handlers:
+      - absorb:
+          success: false
+          count: 2
+      - alert:
+
+You will notice that if you try to put those two together in sequence, the
+``absorb`` filters will interfere with each other. This is where the ``fork``
+filter comes in. It lets you turn a linear list of handlers into a branching
+tree. Here's how you would solve this problem with a fork::
+
+    handlers:
+      - fork:
+          handlers:
+            - absorb:
+                success: true
+            - log:
+      - absorb:
+          success: false
+          count: 2
+      - alert:
+
+When the fork handler is called, it recursively calls all of the handlers that
+it contains. Those handlers block propagation from each other as per normal.
+After the fork is complete, the next handler will run. Forks *never* block
+propagation.
+
 Alerts
 ======
 An alert is just an indicator that something is going wrong. Alerts are managed
@@ -163,7 +205,27 @@ check status has just changed back to 0. When alerts are created or resolve,
 Palantir fires out a Steward event named either 'palantir/alert/create' or
 'palantir/alert/resolve'.
 
-There are a few useful API methods for viewing and manipulating alerts.
+Alerts also have a helpful shortcut for ``fork``-ing. It allows you to run
+certain handlers if an alert is created or resolved. For example, this handler
+logs the check results and sends and email iff an alert is created or
+resolved::
+
+    handlers:
+      - alert:
+          create:
+            - log:
+            - mail:
+                subject: AAAAAAAHHHH
+                body: AAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+                mail_from: bot@company.com
+                mail_to: alerts@company.com
+          resolve:
+            - log:
+            - mail:
+                subject: ...carry on
+                body: Keep calm and carry on
+                mail_from: bot@company.com
+                mail_to: alerts@company.com
 
 Misc
 ====

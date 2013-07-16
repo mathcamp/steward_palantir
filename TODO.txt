@@ -1,6 +1,11 @@
+Immediate
+=========
 * Ability to disable checks/minions
-* More complete documentation
-* More handlers
+* Jinja templating of handler arguments (e.g. emails with context)
+
+Future
+======
 * Web interface
 * Stagger checks
 * Global defaults for handlers
+* Auto-clean minions

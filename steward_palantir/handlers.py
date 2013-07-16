@@ -6,19 +6,12 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
-def log_handler(request, minion, check, status, last_retcode, log_success=False):
+def log_handler(request, minion, check, status, handler_id):
     """
     Check handler that logs the result of a check
 
-    Parameters
-    ----------
-    log_success : bool, optional
-        If True, will log even when the check succeeds (default False)
-
     """
     if status['retcode'] == 0:
-        if not log_success:
-            return
         method = 'info'
         msg = 'succeeded'
     elif status['retcode'] == 1:
@@ -31,7 +24,41 @@ def log_handler(request, minion, check, status, last_retcode, log_success=False)
     fxn("%s check '%s' %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
         check, msg, status['retcode'], status['stdout'], status['stderr'])
 
-def absorb(request, minion, check, status, last_retcode, success=None,
+def fork(request, minion, check, status, handler_id, handlers=None):
+    """
+    Check handler for forking the handler list into a tree
+
+    Parameters
+    ----------
+    handlers : list
+        A list of handlers in the same format as the base ``handlers``
+        attribute of a check.
+
+    """
+    LOG.debug("Forking check handlers")
+    for i, handler_dict in enumerate(handlers):
+        next_id = handler_id + 'f' + str(i)
+        handler_name, params = handler_dict.items()[0]
+        if params is None:
+            params = {}
+        handler = request.registry.palantir_handlers[handler_name]
+        try:
+            LOG.debug("Running handler '%s'", handler_name)
+            handler_result = handler(request, minion, check, status,
+                                        next_id, **params)
+            request.palantir_db.set_last_retcode(minion, check.name,
+                                                    next_id,
+                                                    status['retcode'])
+            # If the handler returns True, don't pass to further handlers
+            if handler_result is True:
+                LOG.debug("Handler '%s' stopped propagation", handler_name)
+                break
+        except:
+            LOG.exception("Error running handler '%s'", handler_name)
+            break
+    LOG.debug("Leaving fork")
+
+def absorb(request, minion, check, status, handler_id, success=None,
            warn=None, error=None, only_change=False, only_change_status=False,
            count=1, success_count=1, out_match=None, err_match=None,
            out_err_match=None, retcodes=None):
@@ -84,6 +111,10 @@ def absorb(request, minion, check, status, last_retcode, success=None,
                 - alert:
 
     """
+    if count > 1 and (only_change or only_change_status):
+        raise ValueError("You should not use count > 1 and only_change in the "
+                         "same 'absorb' handler. It will drop everything.")
+
     if success is not None and status['retcode'] == 0:
         return success
     if warn is not None and status['retcode'] == 1:
@@ -94,6 +125,9 @@ def absorb(request, minion, check, status, last_retcode, success=None,
         return True
     if status['retcode'] == 0 and status['count'] < success_count:
         return True
+    last_retcode = request.palantir_db.last_retcode(minion,
+                                                    check.name,
+                                                    handler_id)
     if only_change and status['retcode'] == last_retcode:
         return True
     if only_change_status:
@@ -124,7 +158,8 @@ def absorb(request, minion, check, status, last_retcode, success=None,
                     if int(low) <= status['retcode'] <= int(high):
                         return True
 
-def alert(request, minion, check, status, last_retcode, manual_resolve=False):
+def alert(request, minion, check, status, handler_id, create=None,
+          resolve=None):
     """
     Create an alert if a check was passing and is now failing
 
@@ -132,17 +167,53 @@ def alert(request, minion, check, status, last_retcode, manual_resolve=False):
 
     Parameters
     ----------
-    manual_resolve : bool, optional
-        If True, the alert will persist until you resolve the alert by hand
-        (default False)
+    create : list
+        A list of handlers to run if an alert was created
+    resolve : list
+        A list of handlers to run if an alert was resolved
 
     """
-    if status['retcode'] == 0 and last_retcode != 0 and not manual_resolve:
+    last_retcode = request.palantir_db.last_retcode(minion,
+                                                    check.name,
+                                                    handler_id)
+    if status['retcode'] == 0 and last_retcode != 0:
         status['reason'] = 'Check passing'
         request.subreq('pub', name='palantir/alert/resolve',
                         data=status)
         request.palantir_db.remove_alert(minion, check.name)
+        if resolve is not None:
+            fork(request, minion, check, status, handler_id, resolve)
     if status['retcode'] != 0 and last_retcode == 0:
         request.subreq('pub', name='palantir/alert/create',
                         data=status)
         request.palantir_db.add_alert(minion, check.name)
+        if create is not None:
+            fork(request, minion, check, status, handler_id, create)
+
+def mail(request, minion, check, status, handler_id, **kwargs):
+    """
+    Check handler that sends emails
+
+    This handler takes the same parameters as the mail endpoint
+
+    Parameters
+    ----------
+    subject : str
+        The subject of the email
+    body : str
+        The body for the email
+    mail_to : str, optional
+        The 'to' address(es) (comma-delimited) (default specified in ini file)
+    mail_from : str, optional
+        The 'from' address (default specified in ini file)
+    smtp_server : str, optional
+        The hostname of the SMTP server (default specified in ini file)
+    smtp_port : int, optional
+        The port the SMTP server is running on (default specified in ini file)
+
+    Notes
+    -----
+    This requires :mod:`steward_smtp` to be included in the app
+
+    """
+    request.subreq('mail', **kwargs)

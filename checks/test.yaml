@@ -1,5 +1,6 @@
 hello:
   target: "*"
+  timeout: 1
   command:
     cmd: echo "hello {{ grains['id'] }}!"
     template: jinja
@@ -7,7 +8,32 @@ hello:
 
   handlers:
     - log:
-        log_success: true
+    - alert:
       
   schedule:
-    seconds: 5
+    seconds: 10
+
+badcheck:
+  target: "*"
+  timeout: 1
+  command:
+    cmd: /bin/false
+
+  handlers:
+    # Create a separate fork that logs any warning or error
+    - fork:
+        handlers:
+          - absorb:
+              success: true
+          - log:
+    # Then create an alert if the check fails twice in a row
+    - absorb:
+        count: 2
+        success: false
+    - alert:
+        # Log the check if the alert was resolved
+        resolve:
+          - log:
+
+  schedule:
+    seconds: 10

@@ -48,7 +48,7 @@ class IStorage(object):
         """
         raise NotImplementedError
 
-    def last_retcode(self, minion, check, handler_idx):
+    def last_retcode(self, minion, check, handler_id):
         """
         Get the last retcode that a handler saw for a unique minion, check pair
 
@@ -58,8 +58,8 @@ class IStorage(object):
             Name of the minion
         check : str
             Name of the check
-        handler_idx : int
-            Index of the handler in the check's 'handlers' section
+        handler_id : str
+            Unique id for a handler in a check
 
         Returns
         -------
@@ -68,7 +68,7 @@ class IStorage(object):
         """
         raise NotImplementedError
 
-    def set_last_retcode(self, minion, check, handler_idx, retcode):
+    def set_last_retcode(self, minion, check, handler_id, retcode):
         """
         Set the last retcode that a handler saw for a unique minion, check pair
 
@@ -78,10 +78,24 @@ class IStorage(object):
             Name of the minion
         check : str
             Name of the check
-        handler_idx : int
-            Index of the handler in the check's 'handlers' section
+        handler_id : str
+            Unique id for a handler in a check
         retcode : int
             The return code that was last seen by the handler
+
+        """
+        raise NotImplementedError
+
+    def clear_last_retcode(self, minion, check):
+        """
+        Clear the last retcode for all handlers of a check
+
+        Parameters
+        ----------
+        minion : str
+            Name of the minion
+        check : str
+            Name of the check
 
         """
         raise NotImplementedError
@@ -209,16 +223,28 @@ class IDictStorage(IStorage):
         self.db[minion_check] = result
         return result
 
-    def get_alerts(self):
-        return self.db.get('alerts', [])
+    def last_retcode(self, minion, check, handler_id):
+        return self.db.get('_'.join([minion, check, handler_id]), 0)
 
-    def last_retcode(self, minion, check, handler_idx):
-        return self.db.get('_'.join([minion, check, str(handler_idx)]), 0)
-
-    def set_last_retcode(self, minion, check, handler_idx, retcode):
-        key = '_'.join([minion, check, str(handler_idx)])
+    def set_last_retcode(self, minion, check, handler_id, retcode):
+        key = '_'.join([minion, check, handler_id])
         self.db[key] = retcode
         self._add_minion_key(minion, key)
+        retcode_key = minion + '_' + check + '_retcode'
+        last_retcodes = self.db.get(retcode_key, [])
+        last_retcodes.append(key)
+        self.db[retcode_key] = last_retcodes
+        self._add_minion_key(minion, retcode_key)
+
+    def clear_last_retcode(self, minion, check):
+        retcode_key = minion + '_' + check + '_retcode'
+        for key in self.db.get(retcode_key, []):
+            if key in self.db:
+                del self.db[key]
+        self.db[retcode_key] = []
+
+    def get_alerts(self):
+        return self.db.get('alerts', [])
 
     def add_alert(self, minion, check):
         alerts = self.db.get('alerts', [])
@@ -240,7 +266,8 @@ class IDictStorage(IStorage):
 
     def delete_minion(self, minion):
         for key in self.db.get(minion + '_keys'):
-            del self.db[key]
+            if key in self.db:
+                del self.db[key]
         del self.db[minion + '_keys']
 
         alerts = self.db.get('alerts', [])

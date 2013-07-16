@@ -6,7 +6,7 @@ import yaml
 from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
-from .handlers import log_handler, absorb, alert
+from .handlers import log_handler, absorb, alert, mail, fork
 from .check import Check, CheckRunner
 
 
@@ -67,6 +67,8 @@ def includeme(config):
         'log': log_handler,
         'absorb': absorb,
         'alert': alert,
+        'mail': mail,
+        'fork': fork,
     }
     for name, path in asdict(settings.get('palantir.handlers')):
         config.registry.palantir_handlers[name] = name_resolver.resolve(path)

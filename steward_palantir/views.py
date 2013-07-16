@@ -1,4 +1,5 @@
 """ Endpoints for Palantir """
+from .handlers import fork
 import logging
 from pyramid.security import unauthenticated_userid
 from pyramid.view import view_config
@@ -50,25 +51,7 @@ def run_check(request):
         check_result[minion] = status
 
         # Run all the event handlers
-        for handler_idx, handler_dict in enumerate(check.handlers):
-            handler_name, params = handler_dict.items()[0]
-            if params is None:
-                params = {}
-            handler = request.registry.palantir_handlers[handler_name]
-            try:
-                last_retcode = request.palantir_db.last_retcode(minion,
-                                                                check_name,
-                                                                handler_idx)
-                handler_result = handler(request, minion, check, status,
-                                         last_retcode, **params)
-                request.palantir_db.set_last_retcode(minion, check_name,
-                                                     handler_idx,
-                                                     status['retcode'])
-                # If the handler returns True, don't pass to further handlers
-                if handler_result is True:
-                    break
-            except:
-                LOG.exception("Error running handler '%s'", handler_name)
+        fork(request, minion, check, status, '0', handlers=check.handlers)
 
     return check_result
 
@@ -118,10 +101,9 @@ def resolve_alert(request):
     """ Mark an alert as 'resolved' """
     minion = request.param('minion')
     check = request.param('check')
+    request.palantir_db.clear_last_retcode(minion, check)
     request.palantir_db.remove_alert(minion, check)
     request.palantir_db.reset_check(minion, check)
-    for i in xrange(len(request.registry.palantir_checks[check].handlers)):
-        request.palantir_db.set_last_retcode(minion, check, i, 0)
     data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
     request.subreq('pub', name='palantir/alert/resolve', data=data)
     return request.response
