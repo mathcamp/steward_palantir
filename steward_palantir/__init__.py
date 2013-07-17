@@ -6,7 +6,7 @@ import yaml
 from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
-from .handlers import log_handler, absorb, alert, mail, fork
+from .handlers import log_handler, absorb, alert, mail, fork, alias_factory
 from .check import Check, CheckRunner
 
 
@@ -39,27 +39,33 @@ def includeme(config):
     config.add_acl_from_settings('palantir')
     config.add_request_method(_db, name='palantir_db', reify=True)
 
-    # Add the checks
+    # Load the checks
     checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
     checks_dir = os.path.abspath(checks_dir)
     LOG.debug("Loading palantir checks from '%s'", checks_dir)
     config.registry.palantir_checks = {}
+    check_to_file = {}
     for filename in os.listdir(checks_dir):
         if not filename.endswith('.yaml'):
             continue
-        with open(os.path.join(checks_dir, filename), 'r') as infile:
+        absfile = os.path.join(checks_dir, filename)
+        with open(absfile, 'r') as infile:
             try:
                 file_data = yaml.load(infile)
                 for check_name, data in file_data.iteritems():
                     if check_name in config.registry.palantir_checks:
                         raise ValueError("Duplicate Palantir check '%s' in "
-                                         "file '%s'" % (check_name, filename))
+                                         "file '%s'. First occurrence "
+                                         "in file '%s'" %
+                                         (check_name, absfile,
+                                          check_to_file[check_name]))
                     check = Check(check_name, data)
                     runner = CheckRunner(config, check_name, data['schedule'])
                     config.add_task(runner, runner.schedule_fxn)
                     config.registry.palantir_checks[check_name] = check
+                    check_to_file[check_name] = absfile
             except yaml.scanner.ScannerError:
-                raise ValueError("Error loading Palantir check '%s'" % filename)
+                raise ValueError("Error loading Palantir check '%s'" % absfile)
 
     # Add the handlers
     name_resolver = DottedNameResolver(__package__)
@@ -72,6 +78,40 @@ def includeme(config):
     }
     for name, path in asdict(settings.get('palantir.handlers')):
         config.registry.palantir_handlers[name] = name_resolver.resolve(path)
+
+    # Load any handler aliases
+    alias_dir = settings.get('palantir.alias_dir')
+    config.registry.palantir_aliases = {}
+    alias_to_file = {}
+    if alias_dir is not None and os.path.exists(alias_dir):
+        alias_dir = os.path.abspath(alias_dir)
+        LOG.debug("Loading palantir aliases from '%s'", alias_dir)
+        for filename in os.listdir(alias_dir):
+            if not filename.endswith('.yaml'):
+                continue
+            absfile = os.path.join(alias_dir, filename)
+            with open(absfile, 'r') as infile:
+                try:
+                    file_data = yaml.load(infile)
+                    for alias_name, data in file_data.iteritems():
+                        if alias_name in config.registry.palantir_checks:
+                            raise ValueError("Cannot create Palantir alias "
+                                             "'%s'. Check '%s' in "
+                                            "file '%s' already exists" %
+                                             (alias_name, alias_name,
+                                              check_to_file[alias_name]))
+                        if alias_name in config.registry.palantir_aliases:
+                            raise ValueError("Duplicate Palantir alias '%s' in "
+                                            "file '%s'. First occurrence "
+                                            "in file '%s'" %
+                                            (alias_name, absfile,
+                                            alias_to_file[alias_name]))
+                        config.registry.palantir_aliases[alias_name] = data
+                        config.registry.palantir_handlers[alias_name] = alias_factory(alias_name)
+                        alias_to_file[alias_name] = absfile
+                except yaml.scanner.ScannerError:
+                    raise ValueError("Error loading Palantir alias '%s'" %
+                                     absfile)
 
     # Set up the storage backend
     backend = settings.get('palantir.storage')

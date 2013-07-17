@@ -1,4 +1,5 @@
 """ Check result handlers """
+import functools
 import re
 
 import logging
@@ -25,7 +26,8 @@ def log_handler(request, minion, check, status, handler_id):
     fxn("%s check '%s' %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
         check, msg, status['retcode'], status['stdout'], status['stderr'])
 
-def fork(request, minion, check, status, handler_id, handlers=None):
+def fork(request, minion, check, status, handler_id, handlers=None,
+         render_args=None):
     """
     Check handler for forking the handler list into a tree
 
@@ -34,8 +36,12 @@ def fork(request, minion, check, status, handler_id, handlers=None):
     handlers : list
         A list of handlers in the same format as the base ``handlers``
         attribute of a check.
+    render_args : dict
+        Values to add to the environment when rendering jinja strings
 
     """
+    if render_args is None:
+        render_args = {}
     LOG.debug("Forking check handlers")
     for i, handler_dict in enumerate(handlers):
         next_id = handler_id + 'f' + str(i)
@@ -48,11 +54,11 @@ def fork(request, minion, check, status, handler_id, handlers=None):
             # Render any templated handler parameters
             for key, value in params.items():
                 if isinstance(value, basestring):
-                    params[key] = Template(value).render(minion=minion,
-                                                         check=check,
-                                                         status=status)
-            handler_result = handler(request, minion, check, status,
-                                        next_id, **params)
+                    render_args.update(minion=minion, check=check,
+                                       status=status)
+                    params[key] = Template(value).render(**render_args)
+            handler_result = handler(request, minion, check, status, next_id,
+                                     **params)
             request.palantir_db.set_last_retcode(minion, check.name,
                                                     next_id,
                                                     status['retcode'])
@@ -224,3 +230,27 @@ def mail(request, minion, check, status, handler_id, **kwargs):
 
     """
     request.subreq('mail', **kwargs)
+
+def alias_factory(name):
+    """ Generate an alias handler with a particular name """
+    return functools.partial(alias, __name=name)
+
+def alias(request, minion, check, status, handler_id, __name=None, **kwargs):
+    """
+    Handler for shortcut references to other sets of handlers
+
+    Parameters
+    ----------
+    __name : str
+        The name of the aliased handlers
+    **kwargs : dict
+        Any keyword arguments passed in will be used for string rendering of
+        parameters passed to the handlers.
+
+    """
+    data = request.registry.palantir_aliases[__name]
+    handlers = data['handlers']
+    render_args = data.get('kwargs', {})
+    render_args.update(kwargs)
+    fork(request, minion, check, status, handler_id, handlers=handlers,
+         render_args=render_args)

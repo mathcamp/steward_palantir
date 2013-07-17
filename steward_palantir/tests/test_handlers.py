@@ -1,7 +1,7 @@
 """ Test handlers """
 from unittest import TestCase
 from pyramid.testing import DummyRequest
-from ..handlers import absorb, fork
+from ..handlers import absorb, fork, alias
 from ..check import Check
 from mock import MagicMock, ANY
 
@@ -72,15 +72,60 @@ class TestFork(HandlerTest):
             'minion':'{{ minion }}',
             'check':'{{ check }}',
             'status':'{{ status }}',
+            'test':'{{ test }}',
         }
         }]
         minion = None
         check = self.check
         stat = status()
-        fork(self.request, minion, check, stat, '', handlers=self.handlers)
+        test = 'secret_value'
+        fork(self.request, minion, check, stat, '', handlers=self.handlers,
+             render_args={'test':test})
         self.h1.assert_called_once_with(self.request, minion, check, stat, ANY,
                                         minion=str(minion), status=str(stat),
-                                        check=str(check))
+                                        check=str(check), test=test)
+
+
+class TestAlias(HandlerTest):
+    """ Test the alias handler """
+    def setUp(self):
+        super(TestAlias, self).setUp()
+        self.h1 = MagicMock()
+        self.h2 = MagicMock()
+        self.request.registry.palantir_handlers = {'handler1': self.h1,
+                                                   'handler2': self.h2}
+        self.handlers = [{'handler1':None}, {'handler2':None}]
+        self.kwargs = {}
+        self.request.registry.palantir_aliases = {'test':
+                                                  {'kwargs':self.kwargs,
+                                                   'handlers':self.handlers}}
+
+
+    def test_handler_sequence(self):
+        """ Alias runs all the handlers in sequence """
+        alias(self.request, None, self.check, status(), '',
+             __name='test')
+        self.assertTrue(self.h1.called)
+        self.assertTrue(self.h2.called)
+
+    def test_render_default(self):
+        """ The alias's kwargs field is used as the default template values """
+        self.handlers[0]['handler1'] = {'test':'{{ test }}'}
+        self.kwargs['test'] = 'secret'
+        alias(self.request, None, self.check, status(), '',
+             __name='test')
+        self.h1.assert_called_once_with(self.request, ANY, ANY, ANY, ANY,
+                                        test=self.kwargs['test'])
+
+    def test_render_params(self):
+        """ The alias's parameters overwrite the kwargs """
+        self.handlers[0]['handler1'] = {'test':'{{ test }}'}
+        self.kwargs['test'] = 'secret'
+        test = 'other_secret'
+        alias(self.request, None, self.check, status(), '',
+             __name='test', test=test)
+        self.h1.assert_called_once_with(self.request, ANY, ANY, ANY, ANY,
+                                        test=test)
 
 
 class TestAbsorb(HandlerTest):

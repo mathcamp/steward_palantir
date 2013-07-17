@@ -6,5 +6,4 @@ Future
 ======
 * Web interface
 * Stagger checks
-* Global defaults for handlers
 * Auto-clean minions

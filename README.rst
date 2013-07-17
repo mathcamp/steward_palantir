@@ -61,6 +61,9 @@ Configuration
     palantir.handlers =
         absorb = steward_palantir.handlers.absorb
 
+    # Directory containing handler aliases. Optional
+    palantir.alias_dir = /etc/steward/aliases
+
 Permissions
 ===========
 ::
@@ -151,8 +154,33 @@ Handlers may mutate the ``status`` object, which will change the value
 passed to successive handlers. If a handler returns ``True``, it will stop
 running handlers. Any successive handlers will not be run.
 
+Handler Templating
+------------------
+If you pass in an argument to a handler as a string, you may render it using the jinja templating syntax. The available variables are:
+
+* ``check`` - instance of ``steward_palantir.check.Check``
+* ``status`` - dict result containing 'retcode', 'stdout', 'stderr', 'previous', and 'count'
+* ``minion`` - name of the minion
+
+You can use this for contextual emails::
+
+    handlers:
+      - absorb:
+          success: true
+      - mail:
+          subject: {{ check.name }} failed on {{ minion }}
+          body: |
+            {{ check.name }} check failed on {{ minion }} with exit code {{ status['retcode'] }}
+            STDOUT:
+            {{ status['stdout'] }}
+            STDERR:
+            {{ status['stderr'] }}
+
 Advanced Handlers
------------------
+=================
+
+Fork
+----
 You may find yourself wanting different handlers to process the check results
 in more and more complex ways. Let's say you want to log all check results that
 do not succeed, and raise an alert after it the check fails twice.
@@ -193,30 +221,8 @@ it contains. Those handlers block propagation from each other as per normal.
 After the fork is complete, the next handler will run. Forks *never* block
 propagation.
 
-Handler Templating
-------------------
-If you pass in an argument to a handler as a string, you may render it using the jinja templating syntax. The available variables are:
-
-* ``check`` - instance of ``steward_palantir.check.Check``
-* ``status`` - dict result containing 'retcode', 'stdout', 'stderr', 'previous', and 'count'
-* ``minion`` - name of the minion
-
-You can use this for contextual emails::
-
-    handlers:
-      - absorb:
-          success: true
-      - mail:
-          subject: {{ check.name }} failed on {{ minion }}
-          body: | 
-            {{ check.name }} check failed on {{ minion }} with exit code {{ status['retcode'] }}
-            STDOUT:
-            {{ status['stdout'] }}
-            STDERR:
-            {{ status['stderr'] }}
-
-Alerts
-======
+Alert
+-----
 An alert is just an indicator that something is going wrong. Alerts are managed
 with the ``steward_palantir.handlers.alert`` handler. It's a useful way to
 mark checks as failing or not.
@@ -248,6 +254,57 @@ resolved::
                 body: Keep calm and carry on
                 mail_from: bot@company.com
                 mail_to: alerts@company.com
+
+Alias
+-----
+You may find yourself creating complex handler pipelines that you want to use
+for more than one check. To keep yourself DRY, create an alias. The
+first thing you have to do is set the ``alias_dir`` configuration value::
+
+    palantir.alias_dir = /etc/steward/aliases
+
+Now you need to put an alias into that directory::
+
+    mailalert:
+      kwargs:
+        raise_title: ALERT
+        resolve_title: RESOLVED
+      handlers:
+        - alert
+            raised:
+            - log:
+            - mail:
+                subject: "[{{ raise_title }}] {{ minion }} {{ check.name }} check"
+                body: {{ minion }} {{ check.name }} check is failing with status {{ status['retcode'] }}
+            resolved:
+            - log:
+            - mail:
+                subject: "[{{ resolve_group }}] {{ minion }} {{ check.name }} check"
+                body: {{ minion }} {{ check.name }} check is passing
+
+Now you can refer to your new alias inside of a check::
+
+    healthcheck:
+      target: "*"
+      timeout: 10
+      command:
+        cmd: /bin/true
+        timeout: 1
+
+      handlers:
+        - absorb:
+            count: 2
+            success: false
+        - mailalert:
+            resolve_title: ALL CLEAR
+
+      schedule:
+        seconds: 30
+
+Note that the alias system is useful, but not *super* flexible. For example, it
+can't conditionally re-arrange the order of its handlers based on parameters.
+It also can't template non-string arguments. If you need these, or other
+complex behaviors, you should just write a custom handler.
 
 Misc
 ====
