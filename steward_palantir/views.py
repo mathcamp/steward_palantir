@@ -1,4 +1,5 @@
 """ Endpoints for Palantir """
+import time
 from .handlers import fork
 import logging
 from pyramid.security import unauthenticated_userid
@@ -48,6 +49,7 @@ def run_check(request):
     response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
                               kwarg=check.command, expr_form=expr_form,
                               timeout=check.timeout)
+    check_ran = time.time()
 
     if expected_minions is None:
         expected_minions = response.keys()
@@ -70,7 +72,8 @@ def run_check(request):
         status = request.palantir_db.add_check_result(minion, check_name,
                                                       result['retcode'],
                                                       result['stdout'],
-                                                      result['stderr'])
+                                                      result['stderr'],
+                                                      check_ran)
         check_result[minion] = status
 
         # Run all the event handlers

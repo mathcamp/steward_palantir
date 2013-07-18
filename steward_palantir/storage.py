@@ -11,7 +11,7 @@ class IStorage(object):
     def __init__(self, request):
         self.request = request
 
-    def add_check_result(self, minion, check, retcode, stdout, stderr):
+    def add_check_result(self, minion, check, retcode, stdout, stderr, ts):
         """
         Add a check result to the history for a minion
 
@@ -27,6 +27,8 @@ class IStorage(object):
             The stdout of the check
         stderr : str
             The stderr of the check
+        ts : float
+            The unix timestamp when the check was run
 
         Returns
         -------
@@ -185,6 +187,8 @@ class IStorage(object):
             The stdout from the last check
         stderr : str
             The stderr from the last check
+        ts : float
+            The unix timestamp when the check was run
 
         Notes
         -----
@@ -321,7 +325,7 @@ class IDictStorage(IStorage):
         keys.append(key)
         self.db[minion + '_keys'] = keys
 
-    def add_check_result(self, minion, check, retcode, stdout, stderr):
+    def add_check_result(self, minion, check, retcode, stdout, stderr, ts):
         minion_check = minion + '_' + check
         if minion_check not in self.db:
             self._add_minion_key(minion, minion_check)
@@ -344,6 +348,7 @@ class IDictStorage(IStorage):
 
         result['stdout'] = stdout
         result['stderr'] = stderr
+        result['ts'] = ts
         self.db[minion_check] = result
         return result
 

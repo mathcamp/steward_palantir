@@ -1,6 +1,22 @@
 """ Client commands """
+from datetime import datetime
 from pprint import pprint
+
 from steward.colors import green, red, yellow, magenta
+
+
+def _fuzzy_timedelta(td):
+    """ Format a timedelta into a *loose* 'X time ago' string """
+    ago_str = lambda x, y:'%d %s%s ago' % (x, y, 's' if x > 1 else '')
+    if td.days > 0:
+        return ago_str(td.days, 'day')
+    hours = td.seconds / 3600
+    if hours > 0:
+        return ago_str(hours, 'hour')
+    minutes = td.seconds / 60
+    if minutes > 0:
+        return ago_str(minutes, 'minute')
+    return ago_str(td.seconds, 'second')
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
@@ -18,10 +34,14 @@ def _format_check_status(status):
     if not status.get('enabled', True):
         string += ' (disabled)'
 
+    ran_at = datetime.fromtimestamp(status['ts'])
+    string += '\nRan at %s (%s)' % (ran_at.isoformat(),
+                                    _fuzzy_timedelta(datetime.now() - ran_at))
+
     if status.get('stdout'):
-        string += "\nSTDOUT:\n{}".format(status['stdout'])
+        string += "\nSTDOUT:\n%s" % status['stdout']
     if status.get('stderr'):
-        string += "\nSTDERR:\n{}".format(status['stderr'])
+        string += "\nSTDERR:\n%s" % status['stderr']
     return string
 
 def do_alerts(client):
