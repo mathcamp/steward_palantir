@@ -4,12 +4,19 @@ from steward.colors import green, red, yellow, magenta
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
+    string = status['name'] + ': '
     if status['retcode'] == 0:
-        string = green("SUCCESS")
+        string += "SUCCESS"
+        color = green
     elif status['retcode'] == 1:
-        string = yellow("WARNING")
+        string += "WARNING"
+        color = yellow
     else:
-        string = red("ERROR(%d)" % status['retcode'])
+        string += "ERROR(%d)" % status['retcode']
+        color = red
+    string = color(string)
+    if not status.get('enabled', True):
+        string += ' (disabled)'
 
     if status.get('stdout'):
         string += "\nSTDOUT:\n{}".format(status['stdout'])
@@ -24,9 +31,9 @@ def do_alerts(client):
     response.sort(key=lambda x:x['check'])
     response.sort(key=lambda x:x['minion'])
     for alert in response:
+        alert['name'] = alert['check']
         color = yellow if alert['retcode'] == 1 else red
-        print "{} - {}: {}".format(color(alert['minion']),
-                                   color(alert['check']),
+        print "{} - {}".format(color(alert['minion']),
                                    _format_check_status(alert))
 
 def do_checks(client, check=None):
@@ -41,9 +48,23 @@ def do_checks(client, check=None):
     """
     response = client.cmd('palantir/check/list').json()
     if check is None:
-        print ', '.join(response)
+        for name, check in response.iteritems():
+            line = name
+            if not check['enabled']:
+                line += ' (disabled)'
+            print line
     else:
         pprint(response[check])
+
+def do_minions(client):
+    """ Print the list of minions """
+    response = client.cmd('palantir/minion/list').json()
+    for name in sorted(response):
+        minion = response[name]
+        if minion['enabled']:
+            print minion['name']
+        else:
+            print minion['name'] + ' (disabled)'
 
 def do_status(client, minion, check=None):
     """
@@ -59,17 +80,20 @@ def do_status(client, minion, check=None):
     """
     if check is None:
         response = client.cmd('palantir/minion/get', minion=minion).json()
-        for name, check in response.iteritems():
-            header = name
-            print magenta('-' * len(name))
-            print magenta(header)
+        header = response['name']
+        if not response['enabled']:
+            header += ' (disabled)'
+        print magenta('-' * len(header))
+        print magenta(header)
+        for check in response['checks']:
             print _format_check_status(check)
     else:
-        response = client.cmd('palantir/check/get', minion=minion,
+        response = client.cmd('palantir/minion/check/get', minion=minion,
                             check=check).json()
         if response is None:
             print "Check %s not found on %s" % (check, minion)
             return
+        response['name'] = check
         print _format_check_status(response)
 
 def do_run_check(client, check):
@@ -83,8 +107,12 @@ def do_run_check(client, check):
 
     """
     response = client.cmd('palantir/check/run', name=check).json()
-    for minion, result in response.iteritems():
-        print '{}: {}'.format(green(minion), _format_check_status(result))
+    if isinstance(response, basestring):
+        print response
+    else:
+        for minion, result in response.iteritems():
+            result['name'] = check
+            print '{}: {}'.format(green(minion), _format_check_status(result))
 
 def do_resolve(client, minion, check):
     """
@@ -99,3 +127,81 @@ def do_resolve(client, minion, check):
 
     """
     client.cmd('palantir/alert/resolve', minion=minion, check=check)
+
+def do_minion_enable(client, *minions):
+    """
+    Enable one or more minions
+
+    Parameters
+    ----------
+    *minions : list
+        The minions to enable
+
+    """
+    client.cmd('palantir/minion/toggle', minions=minions, enabled=True)
+
+def do_minion_disable(client, *minions):
+    """
+    Disable one or more minions
+
+    Parameters
+    ----------
+    *minions : list
+        The minions to disable
+
+    """
+    client.cmd('palantir/minion/toggle', minions=minions, enabled=False)
+
+def do_check_enable(client, *checks):
+    """
+    Enable one or more checks
+
+    Parameters
+    ----------
+    *checks : list
+        The checks to enable
+
+    """
+    client.cmd('palantir/check/toggle', checks=checks, enabled=True)
+
+def do_check_disable(client, *checks):
+    """
+    Disable one or more checks
+
+    Parameters
+    ----------
+    *checks : list
+        The checks to disable
+
+    """
+    client.cmd('palantir/check/toggle', checks=checks, enabled=False)
+
+def do_minion_check_enable(client, minion, *checks):
+    """
+    Enable one or more checks on a specific minion
+
+    Parameters
+    ----------
+    minion : str
+        The minion to enable checks on
+    *checks : list
+        The checks to enable on the minion
+
+    """
+    client.cmd('palantir/minion/check/toggle', minion=minion, checks=checks,
+               enabled=True)
+
+def do_minion_check_disable(client, minion, *checks):
+    """
+    Disable one or more checks on a specific minion
+
+    Parameters
+    ----------
+    minion : str
+        The minions to disable checks on
+    *checks : list
+        The checks to disable on the minion
+
+    """
+    client.cmd('palantir/minion/check/toggle', minion=minion, checks=checks,
+               enabled=False)

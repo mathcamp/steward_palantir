@@ -21,14 +21,36 @@ def include_client(client):
     client.set_cmd('palantir.alerts', 'steward_palantir.client.do_alerts')
     client.set_cmd('palantir.checks', 'steward_palantir.client.do_checks')
     client.set_cmd('palantir.status', 'steward_palantir.client.do_status')
+    client.set_cmd('palantir.minions', 'steward_palantir.client.do_minions')
     client.set_cmd('palantir.run_check', 'steward_palantir.client.do_run_check')
     client.set_cmd('palantir.resolve', 'steward_palantir.client.do_resolve')
+    client.set_cmd('palantir.enable_minion',
+                   'steward_palantir.client.do_minion_enable')
+    client.set_cmd('palantir.disable_minion',
+                   'steward_palantir.client.do_minion_disable')
+    client.set_cmd('palantir.enable_check',
+                   'steward_palantir.client.do_check_enable')
+    client.set_cmd('palantir.disable_check',
+                   'steward_palantir.client.do_check_disable')
+    client.set_cmd('palantir.enable_minion_check',
+                   'steward_palantir.client.do_minion_check_enable')
+    client.set_cmd('palantir.disable_minion_check',
+                   'steward_palantir.client.do_minion_check_disable')
     try:
         checks = client.cmd('palantir/check/list').json().keys()
         client.set_autocomplete('palantir.run_check', checks)
         client.set_autocomplete('palantir.checks', checks)
-        minions = client.cmd('palantir/minion/list').json()
+        client.set_autocomplete('palantir.enable_check', checks)
+        client.set_autocomplete('palantir.disable_check', checks)
+        minions = client.cmd('palantir/minion/list').json().keys()
+        client.set_autocomplete('palantir.enable_minion', minions)
+        client.set_autocomplete('palantir.disable_minion', minions)
+        client.set_autocomplete('palantir.enable_minion_check', minions +
+                                checks)
+        client.set_autocomplete('palantir.disable_minion_check', minions +
+                                checks)
         client.set_autocomplete('palantir.status', minions + checks)
+        client.set_autocomplete('palantir.resolve', minions + checks)
     except:
         # autocomplete isn't mandatory
         LOG.warn("Failed to load palantir autocomplete")
@@ -126,14 +148,18 @@ def includeme(config):
     # Set up the route urls
     config.add_route('palantir_list_checks', '/palantir/check/list')
     config.add_route('palantir_run_check', '/palantir/check/run')
-    config.add_route('palantir_get_check', '/palantir/check/get')
+    config.add_route('palantir_toggle_check', '/palantir/check/toggle')
 
     config.add_route('palantir_list_alerts', '/palantir/alert/list')
     config.add_route('palantir_resolve_alert', '/palantir/alert/resolve')
 
     config.add_route('palantir_list_minions', '/palantir/minion/list')
     config.add_route('palantir_get_minion', '/palantir/minion/get')
+    config.add_route('palantir_toggle_minion', '/palantir/minion/toggle')
     config.add_route('palantir_delete_minion', '/palantir/minion/delete')
+
+    config.add_route('palantir_toggle_minion_check', '/palantir/minion/check/toggle')
+    config.add_route('palantir_get_minion_check', '/palantir/minion/check/get')
 
     config.add_route('palantir_list_handlers', '/palantir/handler/list')
 

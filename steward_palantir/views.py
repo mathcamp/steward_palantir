@@ -21,12 +21,32 @@ def run_check(request):
     """
     check_name = request.param('name')
 
+    if not request.palantir_db.is_check_enabled(check_name):
+        return 'check disabled'
+
     check = request.registry.palantir_checks[check_name]
 
     expected_minions = request.subreq('salt_match', tgt=check.target,
             expr_form=check.expr_form)
-    response = request.subreq('salt', tgt=check.target, cmd='cmd.run_all',
-                              kwarg=check.command, expr_form=check.expr_form,
+    if expected_minions is None:
+        target = check.target
+        expr_form = check.expr_form
+    else:
+        i = 0
+        while i < len(expected_minions):
+            minion = expected_minions[i]
+            if not request.palantir_db.is_minion_enabled(minion) or \
+            not request.palantir_db.is_minion_check_enabled(minion, check_name):
+                del expected_minions[i]
+                continue
+            i += 1
+        target = ','.join(expected_minions)
+        expr_form = 'list'
+        if len(expected_minions) == 0:
+            return 'No minions matched'
+
+    response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
+                              kwarg=check.command, expr_form=expr_form,
                               timeout=check.timeout)
 
     if expected_minions is None:
@@ -37,6 +57,9 @@ def run_check(request):
     # Process results for each minion
     check_result = {}
     for minion in combined_minions:
+        if not request.palantir_db.is_minion_enabled(minion) or \
+        not request.palantir_db.is_minion_check_enabled(minion, check_name):
+            continue
         # Get the response. If no response, replace it with a 'salt timeout'
         # message
         result = response.get(minion, {
@@ -63,12 +86,13 @@ def list_checks(request):
     json_checks = {}
     for name, check in checks.iteritems():
         data = check.__json__(request)
+        data['enabled'] = request.palantir_db.is_check_enabled(name)
         data['minions'] = request.subreq('salt_match', tgt=check.target,
                                           expr_form=check.expr_form)
         json_checks[name] = data
     return json_checks
 
-@view_config(route_name='palantir_get_check', renderer='json',
+@view_config(route_name='palantir_get_minion_check', renderer='json',
              permission='palantir_read')
 def get_check(request):
     """
@@ -82,7 +106,26 @@ def get_check(request):
     """
     minion = request.param('minion')
     check = request.param('check')
-    return request.palantir_db.check_status(minion, check)
+    data = request.palantir_db.check_status(minion, check)
+    data['enabled'] = request.palantir_db.is_check_enabled(check)
+    return data
+
+@view_config(route_name='palantir_toggle_check', permission='palantir_write')
+def toggle_check(request):
+    """
+    Enable/disable a check
+
+    Parameters
+    ----------
+    checks : list
+    enabled : bool
+
+    """
+    checks = request.param('checks', type=list)
+    enabled = request.param('enabled', type=bool)
+    for check in checks:
+        request.palantir_db.set_check_enabled(check, enabled)
+    return request.response
 
 @view_config(route_name='palantir_list_alerts', renderer='json',
              permission='palantir_read')
@@ -120,7 +163,12 @@ def list_handlers(request):
 def list_minions(request):
     """ List all salt minions """
     keys = request.subreq('salt_key', cmd='list_keys')
-    minions = keys['minions']
+    minions = {}
+    for name in keys['minions']:
+        minions[name] = {
+            'name': name,
+            'enabled': request.palantir_db.is_minion_enabled(name),
+        }
     return minions
 
 @view_config(route_name='palantir_delete_minion', permission='palantir_write')
@@ -135,4 +183,52 @@ def delete_minion(request):
 def get_minion(request):
     """ Get the checks that will run on a minion """
     minion = request.param('minion')
-    return request.palantir_db.minion_checks(minion)
+    data = {'name': minion}
+    check_names = request.palantir_db.minion_checks(minion)
+    checks = []
+    for name in check_names:
+        check = request.palantir_db.check_status(minion, name)
+        check['name'] = name
+        check['minion_check_enabled'] = request.palantir_db.is_minion_check_enabled(minion, name)
+        check['enabled'] = request.palantir_db.is_check_enabled(name)
+        checks.append(check)
+    data['checks'] = checks
+    data['enabled'] = request.palantir_db.is_minion_enabled(minion)
+    return data
+
+@view_config(route_name='palantir_toggle_minion', permission='palantir_write')
+def toggle_minion(request):
+    """
+    Enable/disable a minion
+
+    Parameters
+    ----------
+    minions : list
+    enabled : bool
+
+    """
+    minions = request.param('minions', type=list)
+    enabled = request.param('enabled', type=bool)
+    for minion in minions:
+        request.palantir_db.set_minion_enabled(minion, enabled)
+    return request.response
+
+@view_config(route_name='palantir_toggle_minion_check',
+             permission='palantir_write')
+def toggle_minion_check(request):
+    """
+    Enable/disable a check on a specific minion
+
+    Parameters
+    ----------
+    minion : str
+    checks : list
+    enabled : bool
+
+    """
+    minion = request.param('minion')
+    checks = request.param('checks', type=list)
+    enabled = request.param('enabled', type=bool)
+    for check in checks:
+        request.palantir_db.set_minion_check_enabled(minion, check, enabled)
+    return request.response

@@ -310,3 +310,14 @@ Misc
 ====
 When you remove minions, you should call the `delete` endpoint so Palantir can
 remove that minion's data from the database.
+
+**Disabling checks/minions**
+
+You can disable checks, minions, or individual checks for a specific minion.
+Disabling a check is straightforward: the check will not run. Disabling a
+minion or a check on a minion has two possible outcomes.
+
+1. If a check targets a minion using the 'glob', 'list', or 'pcre' expr_forms, it will never be run on the minion.
+2. If a check targets a minion with a different expr_form, the check will still run, but the handlers will not.
+
+This is due to a limitation with salt (it does not expose the matching algorithms).

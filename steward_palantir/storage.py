@@ -209,6 +209,88 @@ class IStorage(object):
         """ Clear the database """
         raise NotImplementedError
 
+    def set_minion_enabled(self, minion, enabled):
+        """
+        Mark a minion as enabled or disabled
+
+        Parameters
+        ----------
+        minion : str
+        enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def set_check_enabled(self, check, enabled):
+        """
+        Mark a check as enabled or disabled
+
+        Parameters
+        ----------
+        check : str
+        enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def set_minion_check_enabled(self, minion, check, enabled):
+        """
+        Mark a check as enabled or disabled on a specific minion
+
+        Parameters
+        ----------
+        minion : str
+        check : str
+        enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def is_minion_enabled(self, minion):
+        """
+        See if a minion is enabled or not
+
+        Parameters
+        ----------
+        minion : str
+
+        Returns
+        -------
+        enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def is_check_enabled(self, check):
+        """
+        See if a check is enabled or not
+
+        Parameters
+        ----------
+        check : str
+
+        Returns
+        -------
+        enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def is_minion_check_enabled(self, minion, check):
+        """
+        See if a check is enabled or not on a specific minion
+
+        Parameters
+        ----------
+        minion : str
+        check : str
+
+        Returns
+        -------
+        enabled : bool
+
+        """
+        raise NotImplementedError
 
 class IDictStorage(IStorage):
     """ Extension of IStorage that is backed by a dict """
@@ -313,6 +395,29 @@ class IDictStorage(IStorage):
 
     def clear(self):
         self.db.clear()
+
+    def set_minion_enabled(self, minion, enabled):
+        key = 'minion:' + minion + ':enabled'
+        self.db[key] = enabled
+        self._add_minion_key(minion, key)
+
+    def set_check_enabled(self, check, enabled):
+        key = 'check:' + check + ':enabled'
+        self.db[key] = enabled
+
+    def set_minion_check_enabled(self, minion, check, enabled):
+        key = 'minion:' + minion + ':' + check + ':enabled'
+        self.db[key] = enabled
+        self._add_minion_key(minion, key)
+
+    def is_minion_enabled(self, minion):
+        return self.db.get('minion:' + minion + ':enabled', True)
+
+    def is_check_enabled(self, check):
+        return self.db.get('check:' + check + ':enabled', True)
+
+    def is_minion_check_enabled(self, minion, check):
+        return self.db.get('minion:' + minion + ':' + check + ':enabled', True)
 
 
 class MemoryStorage(IDictStorage):

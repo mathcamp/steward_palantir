@@ -1,9 +1,3 @@
-Immediate
-=========
-* Ability to disable checks/minions
-
-Future
-======
+* Auto-clean minions
 * Web interface
 * Stagger checks
-* Auto-clean minions
