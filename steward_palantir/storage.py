@@ -205,10 +205,6 @@ class IStorage(object):
         """
         raise NotImplementedError
 
-    def clear(self):
-        """ Clear the database """
-        raise NotImplementedError
-
     def set_minion_enabled(self, minion, enabled):
         """
         Mark a minion as enabled or disabled
@@ -288,6 +284,29 @@ class IStorage(object):
         Returns
         -------
         enabled : bool
+
+        """
+        raise NotImplementedError
+
+    def set_minions(self, minions):
+        """
+        Store the list of all minions
+
+        Parameters
+        ----------
+        minions : list
+
+        """
+        raise NotImplementedError
+
+    def get_minions(self):
+        """
+        Get the list of all minions
+
+        Returns
+        -------
+        minions : list
+            If ``set_minions`` has not been called, return an empty list
 
         """
         raise NotImplementedError
@@ -393,9 +412,6 @@ class IDictStorage(IStorage):
             index += 1
         self.db['alerts'] = alerts
 
-    def clear(self):
-        self.db.clear()
-
     def set_minion_enabled(self, minion, enabled):
         key = 'minion:' + minion + ':enabled'
         self.db[key] = enabled
@@ -419,6 +435,11 @@ class IDictStorage(IStorage):
     def is_minion_check_enabled(self, minion, check):
         return self.db.get('minion:' + minion + ':' + check + ':enabled', True)
 
+    def set_minions(self, minions):
+        self.db['all_minions'] = minions
+
+    def get_minions(self):
+        return self.db.get('all_minions', [])
 
 class MemoryStorage(IDictStorage):
     """

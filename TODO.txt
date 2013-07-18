@@ -1,3 +1,2 @@
-* Auto-clean minions
 * Web interface
 * Stagger checks

@@ -178,6 +178,24 @@ def delete_minion(request):
     request.palantir_db.delete_minion(minion)
     return request.response
 
+@view_config(route_name='palantir_prune_minions', renderer='json',
+             permission='palantir_write')
+def prune_minions(request):
+    """ Remove minions that have been removed from salt """
+    minion_list = request.subreq('palantir_list_minions').keys()
+    minions = set(minion_list)
+    old_minions = set(request.palantir_db.get_minions())
+    removed = old_minions - minions
+    added = minions - old_minions
+    for minion in removed:
+        LOG.info("Removing minion '%s'", minion)
+        request.palantir_db.delete_minion(minion)
+    request.palantir_db.set_minions(minion_list)
+    return {
+        'removed': list(removed),
+        'added': list(added),
+    }
+
 @view_config(route_name='palantir_get_minion', renderer='json',
              permission='palantir_read')
 def get_minion(request):

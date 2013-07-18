@@ -308,9 +308,6 @@ complex behaviors, you should just write a custom handler.
 
 Misc
 ====
-When you remove minions, you should call the `delete` endpoint so Palantir can
-remove that minion's data from the database.
-
 **Disabling checks/minions**
 
 You can disable checks, minions, or individual checks for a specific minion.
