@@ -23,8 +23,12 @@ def log_handler(request, minion, check, status, handler_id):
         method = 'error'
         msg = 'error'
     fxn = getattr(LOG, method)
-    fxn("%s check '%s' %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
-        check, msg, status['retcode'], status['stdout'], status['stderr'])
+
+    count = status['count']
+    count_str = '%d time%s' % (count, 's' if count > 1 else '')
+    fxn("%s check '%s' %s %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
+        check, msg, count_str, status['retcode'], status['stdout'],
+        status['stderr'])
 
 def fork(request, minion, check, status, handler_id, handlers=None,
          render_args=None):
