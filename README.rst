@@ -4,24 +4,25 @@ Palantir is a Steward extension for monitoring.
 
 Setup
 =====
-To use steward_palantir, just add it to your includes either programmatically::
+Steward_palantir depends on steward_sqlalchemy. To use steward_palantir, just
+add it to your includes either programmatically::
 
+    config.include('pyramid_tm')
+    config.include('steward_sqlalchemy')
     config.include('steward_palantir')
 
 or in the config.ini file::
 
-    pyramid.includes = steward_palantir
+    pyramid.includes = 
+        pyramid_tm
+        steward_sqlalchemy
+        steward_palantir
 
 Make sure you include it in the client config file as well.
 
 Quick Start
 ===========
-First thing you need to do is add a storage backend to your paste config.ini file::
-
-    # Do not use 'memory' for production! This is for demonstration purposes only
-    palantir.storage = memory
-
-Now add a check to the checks directory
+First thing you need to do is add a check to the checks directory
 
 /etc/steward/checks/up.yaml::
 
@@ -32,8 +33,6 @@ Now add a check to the checks directory
 
       handlers:
         - log:
-            log_success: true
-        - alert:
 
       schedule:
         minutes: 1
@@ -41,17 +40,11 @@ Now add a check to the checks directory
 Now start the server. You will see log entries for the results of the checks
 (make sure your logging is configured and will log 'INFO' level).
 
-That's it! You now have a working health check for all your minions! See below
-for more advanced usage, such as pipelining handlers and customizing checks.
+That's it! You now have a working health check for all your minions!
 
 Configuration
 =============
 ::
-
-    # Persistence backend. Dotted path to an implementation of
-    # steward_palantir.storage.IStorage. Required. Default values available are
-    # 'memory' and 'sqlitedict'.
-    palantir.storage = sqlitedict
 
     # Directory containing the checks. Optional. Default /etc/steward/checks
     palantir.checks_dir = /etc/steward/checks
@@ -60,9 +53,6 @@ Configuration
     # Optional. See steward_palantir.handlers for built-in handlers.
     palantir.handlers =
         absorb = steward_palantir.handlers.absorb
-
-    # Directory containing handler aliases. Optional
-    palantir.alias_dir = /etc/steward/aliases
 
 Permissions
 ===========
@@ -104,8 +94,14 @@ to make about your system. Here is an annotated example of a complete check::
       handlers:
         - absorb:
             count: 2
+
+      # A list of handlers to run when an alert is raised
+      raised:
         - log:
-        - alert:
+
+      # A list of handlers to run when an alert is resolved
+      resolved:
+        - log:
 
       # How frequently to run the check. Fields are passed in as keyword
       # arguments to datetime.timedelta
@@ -141,26 +137,22 @@ reference is the built-in handlers in ``steward_palantir.handlers``. All
 handlers must take the following arguments:
 
 * **request** - The pyramid Request object
-* **minion** - The name of the minion
-* **check** - The Check object that was performed
-* **status** - The response dict from running the command (contains stdout, stderr, and retcode)
-* **last_retcode** - The retcode of the check the last time this handler was run
+* **result** - The ``steward_palantir.models.CheckResult`` object for the check
 
 In addition, your custom handler may also specify any number of keyword
 arguments. Those are the values filled in by the ``handlers`` section of the
 check file.
 
-Handlers may mutate the ``status`` object, which will change the value
-passed to successive handlers. If a handler returns ``True``, it will stop
-running handlers. Any successive handlers will not be run.
+If a handler returns ``True``, it will stop running handlers. Any successive
+handlers will not be run. This technique can be used, for example, to require
+multiple failed checks before raising an alert.
 
 Handler Templating
 ------------------
-If you pass in an argument to a handler as a string, you may render it using the jinja templating syntax. The available variables are:
+If you pass in an argument to a handler as a string, you may render it using
+the jinja templating syntax. The available variables are:
 
-* ``check`` - instance of ``steward_palantir.check.Check``
-* ``status`` - dict result containing 'retcode', 'stdout', 'stderr', 'previous', and 'count'
-* ``minion`` - name of the minion
+* ``result`` - instance of ``steward_palantir.models.CheckResult``
 
 You can use this for contextual emails::
 
@@ -168,143 +160,13 @@ You can use this for contextual emails::
       - absorb:
           success: true
       - mail:
-          subject: {{ check.name }} failed on {{ minion }}
+          subject: {{ result.check }} failed on {{ result.minion }}
           body: |
-            {{ check.name }} check failed on {{ minion }} with exit code {{ status['retcode'] }}
+            {{ result.check }} check failed on {{ result.minion }} with exit code {{ result.retcode }}
             STDOUT:
-            {{ status['stdout'] }}
+            {{ result.stdout }}
             STDERR:
-            {{ status['stderr'] }}
-
-Advanced Handlers
-=================
-
-Fork
-----
-You may find yourself wanting different handlers to process the check results
-in more and more complex ways. Let's say you want to log all check results that
-do not succeed, and raise an alert after it the check fails twice.
-
-Here is a pipeline that logs all non-successes::
-
-    handlers:
-      - absorb:
-          success: true
-      - log:
-
-And here is a pipeline that raises an alert when the check fails twice::
-
-    handlers:
-      - absorb:
-          success: false
-          count: 2
-      - alert:
-
-You will notice that if you try to put those two together in sequence, the
-``absorb`` filters will interfere with each other. This is where the ``fork``
-filter comes in. It lets you turn a linear list of handlers into a branching
-tree. Here's how you would solve this problem with a fork::
-
-    handlers:
-      - fork:
-          handlers:
-            - absorb:
-                success: true
-            - log:
-      - absorb:
-          success: false
-          count: 2
-      - alert:
-
-When the fork handler is called, it recursively calls all of the handlers that
-it contains. Those handlers block propagation from each other as per normal.
-After the fork is complete, the next handler will run. Forks *never* block
-propagation.
-
-Alert
------
-An alert is just an indicator that something is going wrong. Alerts are managed
-with the ``steward_palantir.handlers.alert`` handler. It's a useful way to
-mark checks as failing or not.
-
-When the ``alert`` handler runs, it will raise an alert if the check status
-has just changed to a nonzero exit code, and it will resolve alerts if the
-check status has just changed back to 0. When alerts are raised or resolved,
-Palantir fires out a Steward event named either 'palantir/alert/raised' or
-'palantir/alert/resolved'.
-
-Alerts also have a helpful shortcut for ``fork``-ing. It allows you to run
-certain handlers if an alert is raised or resolved. For example, this handler
-logs the check results and sends and email iff an alert is raised or
-resolved::
-
-    handlers:
-      - alert:
-          raised:
-            - log:
-            - mail:
-                subject: AAAAAAAHHHH
-                body: AAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-                mail_from: bot@company.com
-                mail_to: alerts@company.com
-          resolved:
-            - log:
-            - mail:
-                subject: ...carry on
-                body: Keep calm and carry on
-                mail_from: bot@company.com
-                mail_to: alerts@company.com
-
-Alias
------
-You may find yourself creating complex handler pipelines that you want to use
-for more than one check. To keep yourself DRY, create an alias. The
-first thing you have to do is set the ``alias_dir`` configuration value::
-
-    palantir.alias_dir = /etc/steward/aliases
-
-Now you need to put an alias into that directory::
-
-    mailalert:
-      kwargs:
-        raise_title: ALERT
-        resolve_title: RESOLVED
-      handlers:
-        - alert
-            raised:
-            - log:
-            - mail:
-                subject: "[{{ raise_title }}] {{ minion }} {{ check.name }} check"
-                body: {{ minion }} {{ check.name }} check is failing with status {{ status['retcode'] }}
-            resolved:
-            - log:
-            - mail:
-                subject: "[{{ resolve_group }}] {{ minion }} {{ check.name }} check"
-                body: {{ minion }} {{ check.name }} check is passing
-
-Now you can refer to your new alias inside of a check::
-
-    healthcheck:
-      target: "*"
-      timeout: 10
-      command:
-        cmd: /bin/true
-        timeout: 1
-
-      handlers:
-        - absorb:
-            count: 2
-            success: false
-        - mailalert:
-            resolve_title: ALL CLEAR
-
-      schedule:
-        seconds: 30
-
-Note that the alias system is useful, but not *super* flexible. For example, it
-can't conditionally re-arrange the order of its handlers based on parameters.
-It also can't template non-string arguments. If you need these, or other
-complex behaviors, you should just write a custom handler.
+            {{ result.stderr }}
 
 Misc
 ====
@@ -315,6 +177,6 @@ Disabling a check is straightforward: the check will not run. Disabling a
 minion or a check on a minion has two possible outcomes.
 
 1. If a check targets a minion using the 'glob', 'list', or 'pcre' expr_forms, it will never be run on the minion.
-2. If a check targets a minion with a different expr_form, the check will still run, but the handlers will not.
+2. If a check targets a minion with a different expr_form, the check will still run, but the handlers will not. Meaning no alerts will be raised.
 
 This is due to a limitation with salt (it does not expose the matching algorithms).

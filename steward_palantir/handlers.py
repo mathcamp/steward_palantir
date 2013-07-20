@@ -1,22 +1,20 @@
 """ Check result handlers """
-import functools
 import re
 
 import logging
-from jinja2 import Template
 
 
 LOG = logging.getLogger(__name__)
 
-def log_handler(request, minion, check, status, handler_id):
+def log_handler(request, result):
     """
     Check handler that logs the result of a check
 
     """
-    if status['retcode'] == 0:
+    if result.retcode == 0:
         method = 'info'
         msg = 'succeeded'
-    elif status['retcode'] == 1:
+    elif result.retcode == 1:
         method = 'warn'
         msg = 'warning'
     else:
@@ -24,61 +22,14 @@ def log_handler(request, minion, check, status, handler_id):
         msg = 'error'
     fxn = getattr(LOG, method)
 
-    count = status['count']
-    count_str = '%d time%s' % (count, 's' if count > 1 else '')
-    fxn("%s check '%s' %s %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s", minion,
-        check, msg, count_str, status['retcode'], status['stdout'],
-        status['stderr'])
+    count_str = '%d time%s' % (result.count, 's' if result.count > 1 else '')
+    fxn("%s check '%s' %s %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s",
+        result.minion, result.check, msg, count_str, result.retcode,
+        result.stdout, result.stderr)
 
-def fork(request, minion, check, status, handler_id, handlers=None,
-         render_args=None):
-    """
-    Check handler for forking the handler list into a tree
-
-    Parameters
-    ----------
-    handlers : list
-        A list of handlers in the same format as the base ``handlers``
-        attribute of a check.
-    render_args : dict
-        Values to add to the environment when rendering jinja strings
-
-    """
-    if render_args is None:
-        render_args = {}
-    LOG.debug("Forking check handlers")
-    for i, handler_dict in enumerate(handlers):
-        next_id = handler_id + 'f' + str(i)
-        handler_name, params = handler_dict.items()[0]
-        if params is None:
-            params = {}
-        handler = request.registry.palantir_handlers[handler_name]
-        try:
-            LOG.debug("Running handler '%s'", handler_name)
-            # Render any templated handler parameters
-            for key, value in params.items():
-                if isinstance(value, basestring):
-                    render_args.update(minion=minion, check=check,
-                                       status=status)
-                    params[key] = Template(value).render(**render_args)
-            handler_result = handler(request, minion, check, status, next_id,
-                                     **params)
-            request.palantir_db.set_last_retcode(minion, check.name,
-                                                    next_id,
-                                                    status['retcode'])
-            # If the handler returns True, don't pass to further handlers
-            if handler_result is True:
-                LOG.debug("Handler '%s' stopped propagation", handler_name)
-                break
-        except:
-            LOG.exception("Error running handler '%s'", handler_name)
-            break
-    LOG.debug("Leaving fork")
-
-def absorb(request, minion, check, status, handler_id, success=None,
-           warn=None, error=None, only_change=False, only_change_status=False,
-           count=1, success_count=1, out_match=None, err_match=None,
-           out_err_match=None, retcodes=None):
+def absorb(request, result, success=None, warn=None, error=None,
+           alert=None, count=1, success_count=1, out_match=None,
+           err_match=None, out_err_match=None, retcodes=None):
     """
     Check handler that acts as a filter and runs before other handlers
 
@@ -90,11 +41,8 @@ def absorb(request, minion, check, status, handler_id, success=None,
         If True, absorb warnings. If False, *never* absorb warnings. (default None)
     error : bool, optional
         If True, absorb errors. If False, *never* absorb errors. (default None)
-    only_change : bool, optional
-        Absorb checks with the same retcode as the last check (default False)
-    only_change_status : bool, optional
-        Absorb checks in the same status category (success, warning, error) as
-        the last check (default False)
+    alert : bool, optional
+        If True, absorb alerts. If False, absorb non-alerts. (default None)
     count : int, optional
         Absorb non-success checks unless the check has returned that result
         this many times (default 1)
@@ -128,86 +76,47 @@ def absorb(request, minion, check, status, handler_id, success=None,
                 - alert:
 
     """
-    if count > 1 and (only_change or only_change_status):
-        raise ValueError("You should not use count > 1 and only_change in the "
-                         "same 'absorb' handler. It will drop everything.")
-
-    if success is not None and status['retcode'] == 0:
+    if success is not None and result.retcode == 0:
         return success
-    if warn is not None and status['retcode'] == 1:
+    if warn is not None and result.retcode == 1:
         return warn
-    if error is not None and status['retcode'] not in (0, 1):
+    if error is not None and result.retcode not in (0, 1):
         return error
-    if status['retcode'] != 0 and status['count'] < count:
+    if result.retcode != 0 and result.count < count:
         return True
-    if status['retcode'] == 0 and status['count'] < success_count:
+    if result.retcode == 0 and result.count < success_count:
         return True
-    last_retcode = request.palantir_db.last_retcode(minion,
-                                                    check.name,
-                                                    handler_id)
-    if only_change and status['retcode'] == last_retcode:
-        return True
-    if only_change_status:
-        if status['retcode'] == last_retcode:
+
+    if alert is not None:
+        if alert and result.alert:
             return True
-        if status['retcode'] not in (0, 1) and last_retcode not in (0, 1):
+        elif not alert and not result.alert:
             return True
-    if out_match and re.match(out_match, status['stdout']):
+
+    if out_match and re.match(out_match, result.stdout):
         return True
-    if err_match and re.match(err_match, status['stderr']):
+    if err_match and re.match(err_match, result.stderr):
         return True
-    if out_err_match and (re.match(out_err_match, status['stdout']) or
-                          re.match(out_err_match, status['stderr'])):
+    if out_err_match and (re.match(out_err_match, result.stdout) or
+                          re.match(out_err_match, result.stderr)):
         return True
     if retcodes is not None:
         ranges = str(retcodes).split(',')
         for intrange in ranges:
             try:
-                if status['retcode'] == int(intrange):
+                if result.retcode == int(intrange):
                     return True
             except ValueError:
                 split = intrange.split('-')
                 if split[1]:
                     low, high = split
-                    if int(low) <= status['retcode'] <= int(high):
+                    if int(low) <= result.retcode <= int(high):
                         return True
                 else:
-                    if status['retcode'] >= int(split[0]):
+                    if result.retcode >= int(split[0]):
                         return True
 
-def alert(request, minion, check, status, handler_id, raised=None,
-          resolved=None):
-    """
-    Raise an alert if a check was passing and is now failing
-
-    Resolve the alert if a check was failing and is now passing
-
-    Parameters
-    ----------
-    raised : list
-        A list of handlers to run if an alert was raised
-    resolved : list
-        A list of handlers to run if an alert was resolved
-
-    """
-    last_retcode = request.palantir_db.last_retcode(minion,
-                                                    check.name,
-                                                    handler_id)
-    if status['retcode'] == 0 and last_retcode != 0:
-        status['reason'] = 'Check passing'
-        request.subreq('pub', name='palantir/alert/resolved',
-                        data=status)
-        request.palantir_db.remove_alert(minion, check.name)
-        if resolved is not None:
-            fork(request, minion, check, status, handler_id, resolved)
-    if status['retcode'] != 0 and last_retcode == 0:
-        request.subreq('pub', name='palantir/alert/raised',
-                        data=status)
-        request.palantir_db.add_alert(minion, check.name)
-        if raised is not None:
-            fork(request, minion, check, status, handler_id, raised)
-
-def mail(request, minion, check, status, handler_id, **kwargs):
+def mail(request, result, **kwargs):
     """
     Check handler that sends emails
 
@@ -234,27 +143,3 @@ def mail(request, minion, check, status, handler_id, **kwargs):
 
     """
     request.subreq('mail', **kwargs)
-
-def alias_factory(name):
-    """ Generate an alias handler with a particular name """
-    return functools.partial(alias, __name=name)
-
-def alias(request, minion, check, status, handler_id, __name=None, **kwargs):
-    """
-    Handler for shortcut references to other sets of handlers
-
-    Parameters
-    ----------
-    __name : str
-        The name of the aliased handlers
-    **kwargs : dict
-        Any keyword arguments passed in will be used for string rendering of
-        parameters passed to the handlers.
-
-    """
-    data = request.registry.palantir_aliases[__name]
-    handlers = data['handlers']
-    render_args = data.get('kwargs', {})
-    render_args.update(kwargs)
-    fork(request, minion, check, status, handler_id, handlers=handlers,
-         render_args=render_args)

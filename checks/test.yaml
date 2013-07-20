@@ -8,8 +8,7 @@ hello:
 
   handlers:
     - log:
-    - alert:
-      
+
   schedule:
     seconds: 10
 
@@ -20,20 +19,16 @@ badcheck:
     cmd: /bin/false
 
   handlers:
-    # Create a separate fork that logs any warning or error
-    - fork:
-        handlers:
-          - absorb:
-              success: true
-          - log:
-    # Then create an alert if the check fails twice in a row
+    # create an alert if the check fails twice in a row
     - absorb:
         count: 2
         success: false
-    - alert:
-        # Log the check if the alert was resolved
-        resolved:
-          - log:
+
+  raised:
+    - log:
+
+  resolved:
+    - log:
 
   schedule:
     seconds: 10

@@ -66,10 +66,14 @@ class Check(object):
         specified.
     schedule : dict
         Keyword arguments to the :class:`datetime.timedelta` constructor
-    handlers : list
+    handlers : list, optional
         List of dicts. Each dict has a single key-value which is the name of
         the handler and a dict representing the keyword arguments that will be
         passed in (may be None).
+    raised : list, optional
+        Same form as ``handlers``. Only called when a alert is raised.
+    resolved : list, optional
+        Same form as ``handlers``. Only called when a alert is resolved.
     expr_form : str, optional
         The type of target matching to use for salt (default 'glob')
     timeout : int, optional
@@ -83,7 +87,9 @@ class Check(object):
         self.timeout = data.get('timeout', 10)
         self.command = data['command']
         self.schedule = data['schedule']
-        self.handlers = data['handlers']
+        self.handlers = data.get('handlers', [])
+        self.raised = data.get('raised', [])
+        self.resolved = data.get('resolved', [])
 
     def __json__(self, request):
         return {
@@ -94,6 +100,8 @@ class Check(object):
             'command': self.command,
             'schedule': self.schedule,
             'handlers': self.handlers,
+            'raised': self.raised,
+            'resolved': self.resolved,
         }
 
     def __str__(self):
@@ -101,4 +109,3 @@ class Check(object):
 
     def __repr__(self):
         return 'Check(%s)' % self.name
-

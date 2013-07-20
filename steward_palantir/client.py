@@ -20,7 +20,7 @@ def _fuzzy_timedelta(td):
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
-    string = status['name'] + ': '
+    string = status['check'] + ': '
     if status['retcode'] == 0:
         string += "SUCCESS"
         color = green
@@ -34,7 +34,7 @@ def _format_check_status(status):
     if not status.get('enabled', True):
         string += ' (disabled)'
 
-    ran_at = datetime.fromtimestamp(status['ts'])
+    ran_at = datetime.fromtimestamp(status['last_run'])
     string += '\nRan at %s (%s)' % (ran_at.isoformat(),
                                     _fuzzy_timedelta(datetime.now() - ran_at))
 

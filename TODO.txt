@@ -1,2 +1,3 @@
+* Some way to keep handlers DRY (mail templates, etc)
 * Web interface
 * Stagger checks
