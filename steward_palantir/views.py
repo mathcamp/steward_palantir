@@ -251,7 +251,7 @@ def delete_minion(request):
     """ Delete a minion and its data """
     minion = request.param('minion')
     request.db.query(MinionDisabled).filter_by(name=minion).delete()
-    request.db.query(CheckResult).filter_by(name=minion).delete()
+    request.db.query(CheckResult).filter_by(minion=minion).delete()
     return request.response
 
 @view_config(route_name='palantir_prune_minions', renderer='json',
