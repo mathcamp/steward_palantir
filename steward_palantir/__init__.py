@@ -4,7 +4,6 @@ import os
 import functools
 import logging
 import yaml
-from ConfigParser import NoOptionError
 from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
@@ -76,10 +75,7 @@ def prune(tasklist):
 
 def include_tasks(config, tasklist):
     """ Add tasks """
-    try:
-        checks_dir = config.get('app:steward', 'palantir.checks_dir')
-    except NoOptionError:
-        checks_dir = '/etc/steward/checks'
+    checks_dir = config.get('palantir.checks_dir', '/etc/steward/checks')
     for name, data in enumerate_checks(checks_dir):
         runner = CheckRunner(tasklist, name, data['schedule'])
         tasklist.add(runner, runner.schedule_fxn)
