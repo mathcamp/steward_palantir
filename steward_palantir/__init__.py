@@ -1,16 +1,33 @@
 """ Steward extension for monitoring servers """
 import os
 
+import functools
 import logging
 import yaml
+from ConfigParser import NoOptionError
 from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
-from .handlers import log_handler, absorb, mail
 from .check import Check, CheckRunner
+from .handlers import log_handler, absorb, mail
 
 
 LOG = logging.getLogger(__name__)
+
+def enumerate_checks(checks_dir):
+    """ Generator for check data """
+    LOG.debug("Loading palantir checks from '%s'", checks_dir)
+    for filename in os.listdir(checks_dir):
+        if not filename.endswith('.yaml'):
+            continue
+        absfile = os.path.join(checks_dir, filename)
+        with open(absfile, 'r') as infile:
+            try:
+                file_data = yaml.load(infile)
+                for check_name, data in file_data.iteritems():
+                    yield check_name, data
+            except yaml.scanner.ScannerError:
+                raise ValueError("Error loading Palantir check '%s'" % absfile)
 
 def include_client(client):
     """ Add methods to the client """
@@ -51,38 +68,37 @@ def include_client(client):
         # autocomplete isn't mandatory
         LOG.warn("Failed to load palantir autocomplete")
 
+def prune(tasklist):
+    """ Prune the minion list regularly """
+    response = tasklist.post('palantir/minion/prune')
+    if not response.status_code == 200:
+        LOG.warning("Failed to prune palantir minions\n%s", response.text)
+
+def include_tasks(config, tasklist):
+    """ Add tasks """
+    try:
+        checks_dir = config.get('app:steward', 'palantir.checks_dir')
+    except NoOptionError:
+        checks_dir = '/etc/steward/checks'
+    for name, data in enumerate_checks(checks_dir):
+        runner = CheckRunner(tasklist, name, data['schedule'])
+        tasklist.add(runner, runner.schedule_fxn)
+
+    tasklist.add(functools.partial(prune, tasklist), '*/15 * * * *')
+
 def includeme(config):
     """ Configure the app """
     settings = config.get_settings()
     config.add_acl_from_settings('palantir')
 
     # Load the checks
-    checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
-    checks_dir = os.path.abspath(checks_dir)
-    LOG.debug("Loading palantir checks from '%s'", checks_dir)
     config.registry.palantir_checks = {}
-    check_to_file = {}
-    for filename in os.listdir(checks_dir):
-        if not filename.endswith('.yaml'):
-            continue
-        absfile = os.path.join(checks_dir, filename)
-        with open(absfile, 'r') as infile:
-            try:
-                file_data = yaml.load(infile)
-                for check_name, data in file_data.iteritems():
-                    if check_name in config.registry.palantir_checks:
-                        raise ValueError("Duplicate Palantir check '%s' in "
-                                         "file '%s'. First occurrence "
-                                         "in file '%s'" %
-                                         (check_name, absfile,
-                                          check_to_file[check_name]))
-                    check = Check(check_name, data)
-                    runner = CheckRunner(config, check_name, data['schedule'])
-                    config.add_task(runner, runner.schedule_fxn)
-                    config.registry.palantir_checks[check_name] = check
-                    check_to_file[check_name] = absfile
-            except yaml.scanner.ScannerError:
-                raise ValueError("Error loading Palantir check '%s'" % absfile)
+    checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
+    for name, data in enumerate_checks(checks_dir):
+        if name in config.registry.palantir_checks:
+            raise ValueError("Duplicate Palantir check '%s'" % name)
+        check = Check(name, data)
+        config.registry.palantir_checks[name] = check
 
     # Add the handlers
     name_resolver = DottedNameResolver(__package__)
@@ -113,12 +129,5 @@ def includeme(config):
     config.add_route('palantir_get_minion_check', '/palantir/minion/check/get')
 
     config.add_route('palantir_list_handlers', '/palantir/handler/list')
-
-    def prune():
-        """ Prune the minion list regularly """
-        response = config.post('palantir/minion/prune')
-        if not response.status_code == 200:
-            LOG.warning("Failed to prune palantir minions\n%s", response.text)
-    config.add_task(prune, '30 * * * *')
 
     config.scan()

@@ -4,11 +4,11 @@ Palantir is a Steward extension for monitoring.
 
 Setup
 =====
-Steward_palantir depends on steward_sqlalchemy. To use steward_palantir, just
-add it to your includes either programmatically::
+To use steward_palantir, just add it to your includes either programmatically::
 
     config.include('pyramid_tm')
     config.include('steward_sqlalchemy')
+    config.include('steward_tasks')
     config.include('steward_palantir')
 
 or in the config.ini file::
@@ -16,6 +16,7 @@ or in the config.ini file::
     pyramid.includes = 
         pyramid_tm
         steward_sqlalchemy
+        steward_tasks
         steward_palantir
 
 Make sure you include it in the client config file as well.
@@ -37,8 +38,13 @@ First thing you need to do is add a check to the checks directory
       schedule:
         minutes: 1
 
-Now start the server. You will see log entries for the results of the checks
-(make sure your logging is configured and will log 'INFO' level).
+Now start the server. You won't see anything yet, because the checks are not
+being run. To run the checks, you will need to run ``steward-tasks
+config.ini``, which will start all steward tasks. See steward_tasks for more
+information.
+
+You should now see log entries for the results of the checks (make sure your
+logging is configured and will log 'INFO' level).
 
 That's it! You now have a working health check for all your minions!
 

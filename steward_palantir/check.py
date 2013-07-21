@@ -20,18 +20,18 @@ class CheckRunner(object):
         The schedule for when to run the check
 
     """
-    def __init__(self, config, name, schedule):
+    def __init__(self, tasklist, name, schedule):
         self.__name__ = 'Check(%s)' % name
-        self.config = config
+        self.tasklist = tasklist
         self.name = name
         self.interval = timedelta(**schedule)
         self.first_run = True
 
     def __call__(self):
         data = {'name':self.name}
-        response = self.config.post('palantir/check/run', data=data)
+        response = self.tasklist.post('palantir/check/run', data=data)
         if not response.ok:
-            LOG.error("Error running '%s'", self)
+            LOG.error("Error running '%s'\n%s", self, response.text)
 
     @property
     def schedule_fxn(self):

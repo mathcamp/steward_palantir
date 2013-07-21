@@ -12,6 +12,7 @@ REQUIREMENTS = [
     'steward',
     'steward_salt',
     'steward_sqlalchemy',
+    'steward_tasks',
     'PyYAML',
     'jinja2',
     'mock',
