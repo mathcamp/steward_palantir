@@ -8,25 +8,25 @@ from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
 from .check import Check, CheckRunner
-from .handlers import log_handler, absorb, mail
+from .handlers import log_handler, absorb, mail, alias
 
 
 LOG = logging.getLogger(__name__)
 
-def enumerate_checks(checks_dir):
-    """ Generator for check data """
-    LOG.debug("Loading palantir checks from '%s'", checks_dir)
-    for filename in os.listdir(checks_dir):
+def iterate_yaml_files(filedir):
+    """ Generator for yaml data """
+    LOG.debug("Loading palantir files from '%s'", filedir)
+    for filename in os.listdir(filedir):
         if not filename.endswith('.yaml'):
             continue
-        absfile = os.path.join(checks_dir, filename)
+        absfile = os.path.join(filedir, filename)
         with open(absfile, 'r') as infile:
             try:
                 file_data = yaml.load(infile)
-                for check_name, data in file_data.iteritems():
-                    yield check_name, data
+                for name, data in file_data.iteritems():
+                    yield name, data
             except yaml.scanner.ScannerError:
-                raise ValueError("Error loading Palantir check '%s'" % absfile)
+                raise ValueError("Error loading Palantir file '%s'" % absfile)
 
 def include_client(client):
     """ Add methods to the client """
@@ -76,7 +76,7 @@ def prune(tasklist):
 def include_tasks(config, tasklist):
     """ Add tasks """
     checks_dir = config.get('palantir.checks_dir', '/etc/steward/checks')
-    for name, data in enumerate_checks(checks_dir):
+    for name, data in iterate_yaml_files(checks_dir):
         runner = CheckRunner(tasklist, name, data['schedule'])
         tasklist.add(runner, runner.schedule_fxn)
 
@@ -90,7 +90,7 @@ def includeme(config):
     # Load the checks
     config.registry.palantir_checks = {}
     checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
-    for name, data in enumerate_checks(checks_dir):
+    for name, data in iterate_yaml_files(checks_dir):
         if name in config.registry.palantir_checks:
             raise ValueError("Duplicate Palantir check '%s'" % name)
         check = Check(name, data)
@@ -105,6 +105,15 @@ def includeme(config):
     }
     for name, path in asdict(settings.get('palantir.handlers')):
         config.registry.palantir_handlers[name] = name_resolver.resolve(path)
+
+    # Load the aliases
+    alias_dir = settings.get('palantir.alias_dir')
+    if os.path.exists(alias_dir):
+        for name, data in iterate_yaml_files(alias_dir):
+            if name in config.registry.palantir_handlers:
+                raise ValueError("Duplicate Palantir alias '%s'" % name)
+            config.registry.palantir_handlers[name] = \
+                    functools.partial(alias, data)
 
     # Set up the route urls
     config.add_route('palantir_list_checks', '/palantir/check/list')

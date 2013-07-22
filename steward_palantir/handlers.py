@@ -2,9 +2,60 @@
 import re
 
 import logging
+from jinja2 import Template
 
 
 LOG = logging.getLogger(__name__)
+
+def run_handlers(request, result, handlers, render_args=None):
+    """
+    Run a list of handlers on a check result
+
+    Parameters
+    ----------
+    result : :class:`~steward_palantir.models.CheckResult`
+    handlers : list
+        A list of handlers in the same format as the base ``handlers``
+        attribute of a check.
+    render_args : dict
+        Values to add to the environment when rendering jinja strings
+
+    """
+    if render_args is None:
+        render_args = {}
+    for handler_dict in handlers:
+        handler_name, params = handler_dict.items()[0]
+        if params is None:
+            params = {}
+        handler = request.registry.palantir_handlers[handler_name]
+        try:
+            LOG.debug("Running handler '%s'", handler_name)
+            # Render any templated handler parameters
+            for key, value in params.items():
+                if isinstance(value, basestring):
+                    render_args.update(result=result)
+                    params[key] = Template(value).render(**render_args)
+            handler_result = handler(request, result, **params)
+            # If the handler returns True, don't pass to further handlers
+            if handler_result is True:
+                LOG.debug("Handler '%s' stopped propagation", handler_name)
+                return True
+        except:
+            LOG.exception("Error running handler '%s'", handler_name)
+            return True
+
+def alias(data, request, result, **kwargs):
+    """
+    Check handler for calling other check handlers
+
+    Do not use this handler directly. Instead, use the alias system mentioned
+    in the README
+
+    """
+    render_args = data.get('kwargs', {})
+    render_args.update(kwargs)
+    handlers = data['handlers']
+    return run_handlers(request, result, handlers, render_args)
 
 def log_handler(request, result):
     """

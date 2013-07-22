@@ -1,10 +1,10 @@
 """ Test handlers """
-from mock import MagicMock
+from mock import MagicMock, ANY
 from pyramid.testing import DummyRequest
 from unittest import TestCase
 
 from ..check import Check
-from ..handlers import absorb
+from ..handlers import absorb, alias
 from ..models import CheckResult
 
 
@@ -25,6 +25,43 @@ class HandlerTest(TestCase):
         result.stdout = stdout
         result.stderr = stderr
         return result
+
+
+class TestAlias(HandlerTest):
+    """ Test the alias handler """
+    def setUp(self):
+        super(TestAlias, self).setUp()
+        self.h1 = MagicMock()
+        self.h2 = MagicMock()
+        self.request.registry.palantir_handlers = {'handler1': self.h1,
+                                                   'handler2': self.h2}
+        self.handlers = [{'handler1':None}, {'handler2':None}]
+        self.kwargs = {}
+        self.data = {'kwargs': self.kwargs,
+                     'handlers': self.handlers}
+
+    def test_handler_sequence(self):
+        """ Alias runs all the handlers in sequence """
+        alias(self.data, self.request, self.result())
+        self.assertTrue(self.h1.called)
+        self.assertTrue(self.h2.called)
+
+    def test_render_default(self):
+        """ The alias's kwargs field is used as the default template values """
+        self.handlers[0]['handler1'] = {'test':'{{ test }}'}
+        self.kwargs['test'] = 'secret'
+        alias(self.data, self.request, self.result())
+        self.h1.assert_called_once_with(self.request, ANY,
+                                        test=self.kwargs['test'])
+
+    def test_render_params(self):
+        """ The alias's parameters overwrite the kwargs """
+        self.handlers[0]['handler1'] = {'test':'{{ test }}'}
+        self.kwargs['test'] = 'secret'
+        test = 'other_secret'
+        alias(self.data, self.request, self.result(), test=test)
+        self.h1.assert_called_once_with(self.request, ANY, test=test)
+
 
 class TestAbsorb(HandlerTest):
     """ Test the absorb handler """

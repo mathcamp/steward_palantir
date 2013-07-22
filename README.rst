@@ -60,6 +60,9 @@ Configuration
     palantir.handlers =
         absorb = steward_palantir.handlers.absorb
 
+    # Directory containing handler aliases. Optional
+    palantir.alias_dir = /etc/steward/aliases
+
 Permissions
 ===========
 ::
@@ -173,6 +176,50 @@ You can use this for contextual emails::
             {{ result.stdout }}
             STDERR:
             {{ result.stderr }}
+
+Aliases
+-------
+You may find yourself creating complex handler pipelines that you want to use
+for more than one check. To keep yourself DRY, create an alias. The first thing
+you have to do is set the alias_dir configuration value::
+
+    palantir.alias_dir = /etc/steward/aliases
+
+Now you need to put an alias into that directory::
+
+    mailalert:
+      kwargs:
+        title: ALERT
+      handlers:
+        - log:
+        - mail:
+          subject: "[{{ title }}] {{ minion }} {{ check.name }} check"
+          body: {{ minion }} {{ check.name }} has status {{ status['retcode'] }}
+
+Now you can refer to your new alias inside of a check::
+
+    healthcheck:
+      target: "*"
+      timeout: 10
+      command:
+        cmd: /bin/true
+        timeout: 1
+
+      raised:
+        - mailalert:
+          title: ALERT
+
+      resolved:
+        - mailalert:
+          title: RESOLVED
+
+      schedule:
+        seconds: 30
+
+Note that the alias system is useful, but not super flexible. For example, it
+can't conditionally re-arrange the order of its handlers based on parameters.
+It also can't template non-string arguments. If you need these, or other
+complex behaviors, you should just write a custom handler.
 
 Misc
 ====

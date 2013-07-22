@@ -2,10 +2,10 @@
 from datetime import datetime
 
 import logging
-from jinja2 import Template
 from pyramid.security import unauthenticated_userid
 from pyramid.view import view_config
 
+from .handlers import run_handlers
 from .models import CheckDisabled, MinionDisabled, CheckResult
 
 
@@ -97,61 +97,22 @@ def run_check(request):
         check_result.last_run = datetime.now()
 
         # Run all the event handlers
-        handler_result = run_handlers(request, check_result,
-                handlers=check.handlers)
+        handler_result = run_handlers(request, check_result, check.handlers)
 
         if handler_result is not True:
             if check_result.alert and check_result.retcode == 0:
                 check_result.alert = False
                 request.subreq('pub', name='palantir/alert/resolved',
                                 data=result)
-                run_handlers(request, check_result, handlers=check.resolved)
+                run_handlers(request, check_result, check.resolved)
 
             elif not check_result.alert and check_result.retcode != 0:
                 check_result.alert = True
                 request.subreq('pub', name='palantir/alert/raised',
                                 data=result)
-                run_handlers(request, check_result, handlers=check.raised)
+                run_handlers(request, check_result, check.raised)
 
     return check_results
-
-def run_handlers(request, result, handlers=None,
-                 render_args=None):
-    """
-    Check handler for forking the handler list into a tree
-
-    Parameters
-    ----------
-    result : :class:`~steward_palantir.models.CheckResult`
-    handlers : list
-        A list of handlers in the same format as the base ``handlers``
-        attribute of a check.
-    render_args : dict
-        Values to add to the environment when rendering jinja strings
-
-    """
-    if render_args is None:
-        render_args = {}
-    for handler_dict in handlers:
-        handler_name, params = handler_dict.items()[0]
-        if params is None:
-            params = {}
-        handler = request.registry.palantir_handlers[handler_name]
-        try:
-            LOG.debug("Running handler '%s'", handler_name)
-            # Render any templated handler parameters
-            for key, value in params.items():
-                if isinstance(value, basestring):
-                    render_args.update(result=result)
-                    params[key] = Template(value).render(**render_args)
-            handler_result = handler(request, result, **params)
-            # If the handler returns True, don't pass to further handlers
-            if handler_result is True:
-                LOG.debug("Handler '%s' stopped propagation", handler_name)
-                return True
-        except:
-            LOG.exception("Error running handler '%s'", handler_name)
-            return True
 
 @view_config(route_name='palantir_list_checks', renderer='json',
              permission='palantir_read')
@@ -220,7 +181,7 @@ def resolve_alert(request):
     result = request.db.query(CheckResult).filter_by(minion=minion,
                                                      check=check_name).one()
     result.alert = False
-    run_handlers(request, result, handlers=check.resolved)
+    run_handlers(request, result, check.resolved)
     data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
     request.subreq('pub', name='palantir/alert/resolved', data=data)
     return request.response
