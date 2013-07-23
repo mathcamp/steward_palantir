@@ -1,2 +1,3 @@
+* Marking resolved should pass special params to handlers (otherwise emails don't make sense)
 * Web interface
 * Stagger checks

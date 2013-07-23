@@ -1,4 +1,5 @@
 """ Endpoints for Palantir """
+import itertools
 from datetime import datetime
 
 import logging
@@ -225,8 +226,9 @@ def prune_minions(request):
     """ Remove minions that have been removed from salt """
     minion_list = request.subreq('palantir_list_minions').keys()
     minions = set(minion_list)
-    old_minions = set(request.db.query(CheckResult.minion)
-                      .group_by(CheckResult.minion).all())
+    old_minions = set(itertools.chain.from_iterable(
+        request.db.query(CheckResult.minion)
+        .group_by(CheckResult.minion).all()))
     removed = old_minions - minions
     added = minions - old_minions
     for minion in removed:
