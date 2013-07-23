@@ -1,3 +1,4 @@
-* Some way to keep handlers DRY (mail templates, etc)
+* Require/allow description & owner for each check (allow desc & owner in templating?)
+* Allow arbitrary arguments for rendering (email addresses, for example)
 * Web interface
 * Stagger checks

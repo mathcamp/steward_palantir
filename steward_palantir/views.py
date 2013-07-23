@@ -6,7 +6,7 @@ from pyramid.security import unauthenticated_userid
 from pyramid.view import view_config
 
 from .handlers import run_handlers
-from .models import CheckDisabled, MinionDisabled, CheckResult
+from .models import CheckDisabled, MinionDisabled, CheckResult, Alert
 
 
 LOG = logging.getLogger(__name__)
@@ -102,12 +102,15 @@ def run_check(request):
         if handler_result is not True:
             if check_result.alert and check_result.retcode == 0:
                 check_result.alert = False
+                request.db.query(Alert).filter_by(minion=minion,
+                                                  check=check_name).delete()
                 request.subreq('pub', name='palantir/alert/resolved',
                                 data=result)
                 run_handlers(request, check_result, check.resolved)
 
             elif not check_result.alert and check_result.retcode != 0:
                 check_result.alert = True
+                request.db.add(Alert.from_result(check_result))
                 request.subreq('pub', name='palantir/alert/raised',
                                 data=result)
                 run_handlers(request, check_result, check.raised)
@@ -170,7 +173,7 @@ def toggle_check(request):
              permission='palantir_read')
 def list_alerts(request):
     """ List all current alerts """
-    return request.db.query(CheckResult).filter_by(alert=True).all()
+    return request.db.query(Alert).all()
 
 @view_config(route_name='palantir_resolve_alert', permission='palantir_write')
 def resolve_alert(request):
@@ -181,6 +184,7 @@ def resolve_alert(request):
     result = request.db.query(CheckResult).filter_by(minion=minion,
                                                      check=check_name).one()
     result.alert = False
+    request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
     run_handlers(request, result, check.resolved)
     data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
     request.subreq('pub', name='palantir/alert/resolved', data=data)

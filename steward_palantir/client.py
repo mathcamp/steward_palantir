@@ -34,9 +34,17 @@ def _format_check_status(status):
     if not status.get('enabled', True):
         string += ' (disabled)'
 
-    ran_at = datetime.fromtimestamp(status['last_run'])
-    string += '\nRan at %s (%s)' % (ran_at.isoformat(),
-                                    _fuzzy_timedelta(datetime.now() - ran_at))
+    if 'last_run' in status:
+        ran_at = datetime.fromtimestamp(status['last_run'])
+        string += '\nRan at %s (%s)' % (ran_at.isoformat(),
+                                        _fuzzy_timedelta(datetime.now() -
+                                                         ran_at))
+    else:
+        ran_at = datetime.fromtimestamp(status['created'])
+        string += '\nCreated at %s (%s)' % (ran_at.isoformat(),
+                                            _fuzzy_timedelta(datetime.now() -
+                                                             ran_at))
+
 
     if status.get('stdout'):
         string += "\nSTDOUT:\n%s" % status['stdout']
