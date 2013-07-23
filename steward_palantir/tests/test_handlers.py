@@ -1,4 +1,5 @@
 """ Test handlers """
+from collections import defaultdict
 from mock import MagicMock, ANY
 from pyramid.testing import DummyRequest
 from unittest import TestCase
@@ -13,9 +14,10 @@ class HandlerTest(TestCase):
     def setUp(self):
         super(HandlerTest, self).setUp()
         self.request = DummyRequest()
-        self.db = self.request.palantir_db = MagicMock()
         self.check = Check('testcheck', {'target':'', 'command':'',
                                          'schedule':None ,'handlers':[]})
+        self.request.registry.palantir_checks = defaultdict(lambda:self.check)
+        self.db = self.request.palantir_db = MagicMock()
 
     def result(self, retcode=0, count=1, stdout='', stderr=''):
         """ Convenience method for creating a result """
