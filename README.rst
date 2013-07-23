@@ -13,7 +13,7 @@ To use steward_palantir, just add it to your includes either programmatically::
 
 or in the config.ini file::
 
-    pyramid.includes = 
+    pyramid.includes =
         pyramid_tm
         steward_sqlalchemy
         steward_tasks
@@ -63,6 +63,13 @@ Configuration
     # Directory containing handler aliases. Optional
     palantir.alias_dir = /etc/steward/aliases
 
+    # List of fields that are required in your check metadata. Used to enforce
+    # good conventions within your organization. Optional.
+    palantir.required_meta =
+        owner
+        description
+        resolve_steps
+
 Permissions
 ===========
 ::
@@ -96,6 +103,14 @@ to make about your system. Here is an annotated example of a complete check::
         cmd: echo "hello {{ grains['id'] }}!"
         template: jinja
         timeout: 1
+
+      # Optional dict of any metadata about the check
+      meta:
+        owner: Cave Johnson
+        owner_email: cave@aperture.com
+        description: Basic health test for salt
+        causes: Salt minion is probably down. Try restarting it (service salt-minion restart)
+        severity: low
 
       # A list of handlers for the check. This is a list of dicts that maps the
       # name of the handler to an optional list of keyword arguments to pass in
@@ -162,20 +177,43 @@ If you pass in an argument to a handler as a string, you may render it using
 the jinja templating syntax. The available variables are:
 
 * ``result`` - instance of ``steward_palantir.models.CheckResult``
+* ``check`` - instance of ``steward_palantir.check.Check``
 
 You can use this for contextual emails::
 
-    handlers:
-      - absorb:
-          success: true
+    raised:
       - mail:
-          subject: {{ result.check }} failed on {{ result.minion }}
+          subject: "{{ result.check }} failed on {{ result.minion }}"
           body: |
             {{ result.check }} check failed on {{ result.minion }} with exit code {{ result.retcode }}
             STDOUT:
             {{ result.stdout }}
             STDERR:
             {{ result.stderr }}
+
+If you specify additional data in the check's 'meta' field, you can use that in
+the formatting. It is highly recommended that you establish a good system of
+metadata and enforce it with the 'required_meta' option mentioned above. For
+example, doesn't this email look SO much better than the last one?
+
+::
+
+    raised:
+      - mail:
+          mail_to: "{{ check.meta.owners }}"
+          subject: "{{ result.check }} failed on {{ result.minion }}"
+          body: |
+            {{ result.check }} check failed on {{ result.minion }} with exit code {{ result.retcode }}
+
+            What this check does: {{ check.meta.description }}
+            Possible causes for this error: {{ check.meta.causes }}
+
+            STDOUT:
+            {{ result.stdout }}
+            STDERR:
+            {{ result.stderr }}
+
+Which one would you rather receive at 3am on a Saturday?
 
 Aliases
 -------
@@ -194,7 +232,7 @@ Now you need to put an alias into that directory::
         - log:
         - mail:
           subject: "[{{ title }}] {{ minion }} {{ check.name }} check"
-          body: {{ minion }} {{ check.name }} has status {{ status['retcode'] }}
+          body: "{{ minion }} {{ check.name }} has status {{ status['retcode'] }}"
 
 Now you can refer to your new alias inside of a check::
 

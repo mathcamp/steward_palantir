@@ -1,4 +1,5 @@
 """ Steward extension for monitoring servers """
+from pyramid.settings import aslist
 import os
 
 import functools
@@ -90,10 +91,15 @@ def includeme(config):
     # Load the checks
     config.registry.palantir_checks = {}
     checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
+    required_meta = set(aslist(settings.get('palantir.required_meta', [])))
     for name, data in iterate_yaml_files(checks_dir):
         if name in config.registry.palantir_checks:
             raise ValueError("Duplicate Palantir check '%s'" % name)
         check = Check(name, data)
+        missing_meta = required_meta - set(check.meta.keys())
+        if missing_meta:
+            raise ValueError("Check '%s' is missing meta field(s) '%s'" %
+                             (name, ', '.join(missing_meta)))
         config.registry.palantir_checks[name] = check
 
     # Add the handlers

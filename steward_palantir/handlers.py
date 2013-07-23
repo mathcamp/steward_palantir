@@ -23,6 +23,7 @@ def run_handlers(request, result, handlers, render_args=None):
     """
     if render_args is None:
         render_args = {}
+    check = request.registry.palantir_checks[result.check]
     for handler_dict in handlers:
         handler_name, params = handler_dict.items()[0]
         if params is None:
@@ -33,7 +34,7 @@ def run_handlers(request, result, handlers, render_args=None):
             # Render any templated handler parameters
             for key, value in params.items():
                 if isinstance(value, basestring):
-                    render_args.update(result=result)
+                    render_args.update(result=result, check=check)
                     params[key] = Template(value).render(**render_args)
             handler_result = handler(request, result, **params)
             # If the handler returns True, don't pass to further handlers

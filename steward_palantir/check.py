@@ -64,6 +64,10 @@ class Check(object):
     command : dict
         Keyword arguments to the 'cmd.run_all' salt module. 'cmd' must be
         specified.
+    expr_form : str, optional
+        The type of target matching to use for salt (default 'glob')
+    timeout : int, optional
+        How long for salt to wait for a response (default 10 seconds)
     schedule : dict
         Keyword arguments to the :class:`datetime.timedelta` constructor
     handlers : list, optional
@@ -74,10 +78,8 @@ class Check(object):
         Same form as ``handlers``. Only called when a alert is raised.
     resolved : list, optional
         Same form as ``handlers``. Only called when a alert is resolved.
-    expr_form : str, optional
-        The type of target matching to use for salt (default 'glob')
-    timeout : int, optional
-        How long for salt to wait for a response (default 10 seconds)
+    meta : dict, optional
+        Dictionary of arbitrary metadata for the check
 
     """
     def __init__(self, name, data):
@@ -90,6 +92,7 @@ class Check(object):
         self.handlers = data.get('handlers', [])
         self.raised = data.get('raised', [])
         self.resolved = data.get('resolved', [])
+        self.meta = data.get('meta', {})
 
     def __json__(self, request):
         return {
@@ -102,6 +105,7 @@ class Check(object):
             'handlers': self.handlers,
             'raised': self.raised,
             'resolved': self.resolved,
+            'meta': self.meta,
         }
 
     def __str__(self):
