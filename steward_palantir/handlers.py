@@ -57,26 +57,32 @@ def alias(data, request, result, **kwargs):
     handlers = data['handlers']
     return run_handlers(request, result, handlers, render_args)
 
-def log_handler(request, result):
+def log_handler(request, result, message=None):
     """
     Check handler that logs the result of a check
 
+    Parameters
+    ----------
+    message : str, optional
+        Specific message to send to the logs
+
     """
     if result.retcode == 0:
-        method = 'info'
+        fxn = LOG.info
         msg = 'succeeded'
     elif result.retcode == 1:
-        method = 'warn'
+        fxn = LOG.warn
         msg = 'warning'
     else:
-        method = 'error'
+        fxn = LOG.warn
         msg = 'error'
-    fxn = getattr(LOG, method)
 
-    count_str = '%d time%s' % (result.count, 's' if result.count > 1 else '')
-    fxn("%s check '%s' %s %s with code %d\nSTDOUT:\n%s\nSTDERR:\n%s",
-        result.minion, result.check, msg, count_str, result.retcode,
-        result.stdout, result.stderr)
+    if message is None:
+        fxn("%s check '%s' %s %d times with code %d\nSTDOUT:\n%s\nSTDERR:\n%s",
+            result.minion, result.check, msg, result.count, result.retcode,
+            result.stdout, result.stderr)
+    else:
+        fxn(message)
 
 def absorb(request, result, success=None, warn=None, error=None,
            alert=None, count=1, success_count=1, out_match=None,
