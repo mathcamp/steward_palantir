@@ -121,7 +121,7 @@ def run_check(request):
                                 data=check_result.__json__(request))
                 run_handlers(request, check_result, check.raised)
 
-        request.db.merge(check_result)
+        check_results[minion] = check_result
 
     return check_results
 
