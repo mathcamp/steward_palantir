@@ -43,7 +43,7 @@ def run_check(request):
 
     if check.target is None:
         response = request.subreq('salt_call', cmd='cmd.run_all',
-                                arg=(check.command['cmd'],))
+                                  kwarg=check.command)
         expected_minions = None
         response = {'__global__': response}
     else:
