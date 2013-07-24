@@ -99,7 +99,7 @@ class Check(object):
         else:
             if self.expr_form is None:
                 self.expr_form = 'glob'
-            if self.timeout is not None:
+            if self.timeout is None:
                 self.timeout = 10
         self.command = data['command']
         self.schedule = data['schedule']
