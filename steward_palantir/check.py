@@ -44,6 +44,9 @@ class CheckRunner(object):
             return dt + self.interval
         return next_run
 
+    def __str__(self):
+        return self.__name__
+
 
 class Check(object):
     """
@@ -59,8 +62,9 @@ class Check(object):
     Attributes
     ----------
     name : str
-    target : str
-        The salt target string
+    target : str, optional
+        The salt target string. If not present, will only be run on the
+        palantir server.
     command : dict
         Keyword arguments to the 'cmd.run_all' salt module. 'cmd' must be
         specified.
@@ -84,9 +88,19 @@ class Check(object):
     """
     def __init__(self, name, data):
         self.name = name
-        self.target = data['target']
-        self.expr_form = data.get('expr_form', 'glob')
-        self.timeout = data.get('timeout', 10)
+        self.target = data.get('target')
+        self.expr_form = data.get('expr_form')
+        self.timeout = data.get('timeout')
+        if self.target is None:
+            if self.expr_form is not None:
+                raise ValueError("Cannot use expr_form when target is blank!")
+            if self.timeout is not None:
+                raise ValueError("Cannot use timeout when target is blank!")
+        else:
+            if self.expr_form is None:
+                self.expr_form = 'glob'
+            if self.timeout is not None:
+                self.timeout = 10
         self.command = data['command']
         self.schedule = data['schedule']
         self.handlers = data.get('handlers', [])

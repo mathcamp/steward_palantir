@@ -41,27 +41,33 @@ def run_check(request):
             return False
         return True
 
-    expected_minions = request.subreq('salt_match', tgt=check.target,
-            expr_form=check.expr_form)
-    if expected_minions is None:
-        target = check.target
-        expr_form = check.expr_form
+    if check.target is None:
+        response = request.subreq('salt_call', cmd='cmd.run_all',
+                                arg=(check.command['cmd'],))
+        expected_minions = None
+        response = {'__global__': response}
     else:
-        i = 0
-        while i < len(expected_minions):
-            minion = expected_minions[i]
-            if not do_minion_check(minion, check_name):
-                del expected_minions[i]
-                continue
-            i += 1
-        target = ','.join(expected_minions)
-        expr_form = 'list'
-        if len(expected_minions) == 0:
-            return 'No minions matched'
+        expected_minions = request.subreq('salt_match', tgt=check.target,
+                expr_form=check.expr_form)
+        if expected_minions is None:
+            target = check.target
+            expr_form = check.expr_form
+        else:
+            i = 0
+            while i < len(expected_minions):
+                minion = expected_minions[i]
+                if not do_minion_check(minion, check_name):
+                    del expected_minions[i]
+                    continue
+                i += 1
+            target = ','.join(expected_minions)
+            expr_form = 'list'
+            if len(expected_minions) == 0:
+                return 'No minions matched'
 
-    response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
-                              kwarg=check.command, expr_form=expr_form,
-                              timeout=check.timeout)
+        response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
+                                kwarg=check.command, expr_form=expr_form,
+                                timeout=check.timeout)
 
     if expected_minions is None:
         expected_minions = response.keys()
@@ -91,7 +97,6 @@ def run_check(request):
                 check_result.count += 1
             else:
                 check_result.count = 1
-            request.db.merge(check_result)
         check_result.stdout = result['stdout']
         check_result.stderr = result['stderr']
         check_result.retcode = result['retcode']
@@ -106,15 +111,17 @@ def run_check(request):
                 request.db.query(Alert).filter_by(minion=minion,
                                                   check=check_name).delete()
                 request.subreq('pub', name='palantir/alert/resolved',
-                                data=result)
+                                data=check_result.__json__(request))
                 run_handlers(request, check_result, check.resolved)
 
             elif not check_result.alert and check_result.retcode != 0:
                 check_result.alert = True
                 request.db.add(Alert.from_result(check_result))
                 request.subreq('pub', name='palantir/alert/raised',
-                                data=result)
+                                data=check_result.__json__(request))
                 run_handlers(request, check_result, check.raised)
+
+        request.db.merge(check_result)
 
     return check_results
 
@@ -210,6 +217,10 @@ def list_minions(request):
             'enabled': not bool(request.db.query(MinionDisabled)
                                 .filter_by(name=name).first()),
         }
+    minions['__global__'] = {
+        'name': '__global__',
+        'enabled': True,
+    }
     return minions
 
 @view_config(route_name='palantir_delete_minion', permission='palantir_write')
