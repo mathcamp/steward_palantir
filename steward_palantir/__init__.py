@@ -69,10 +69,11 @@ def include_client(client):
         LOG.warn("Failed to load palantir autocomplete")
 
 def prune(tasklist):
-    """ Prune the minion list regularly """
-    response = tasklist.post('palantir/minion/prune')
+    """ Prune the minions and checks regularly """
+    response = tasklist.post('palantir/prune')
     if not response.status_code == 200:
-        LOG.warning("Failed to prune palantir minions\n%s", response.text)
+        LOG.warning("Failed to prune palantir minions and checks\n%s",
+                    response.text)
 
 def include_tasks(config, tasklist):
     """ Add tasks """
@@ -133,12 +134,12 @@ def includeme(config):
     config.add_route('palantir_get_minion', '/palantir/minion/get')
     config.add_route('palantir_toggle_minion', '/palantir/minion/toggle')
     config.add_route('palantir_delete_minion', '/palantir/minion/delete')
-    config.add_route('palantir_prune_minions', '/palantir/minion/prune')
 
     config.add_route('palantir_toggle_minion_check',
                      '/palantir/minion/check/toggle')
     config.add_route('palantir_get_minion_check', '/palantir/minion/check/get')
 
     config.add_route('palantir_list_handlers', '/palantir/handler/list')
+    config.add_route('palantir_prune', '/palantir/prune')
 
     config.scan()

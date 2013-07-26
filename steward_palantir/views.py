@@ -231,24 +231,6 @@ def delete_minion(request):
     request.db.query(CheckResult).filter_by(minion=minion).delete()
     return request.response
 
-@view_config(route_name='palantir_prune_minions', renderer='json',
-             permission='palantir_write')
-def prune_minions(request):
-    """ Remove minions that have been removed from salt """
-    minion_list = request.subreq('palantir_list_minions').keys()
-    minions = set(minion_list)
-    old_minions = set(itertools.chain.from_iterable(
-        request.db.query(CheckResult.minion)
-        .group_by(CheckResult.minion).all()))
-    removed = old_minions - minions
-    added = minions - old_minions
-    for minion in removed:
-        request.subreq('palantir_delete_minion', minion=minion)
-    return {
-        'removed': list(removed),
-        'added': list(added),
-    }
-
 @view_config(route_name='palantir_get_minion', renderer='json',
              permission='palantir_read')
 def get_minion(request):
@@ -305,3 +287,32 @@ def toggle_minion_check(request):
             request.db.add(result)
         result.enabled = enabled
     return request.response
+
+@view_config(route_name='palantir_prune', renderer='json',
+             permission='palantir_write')
+def prune_data(request):
+    """
+    Remove minions that have been removed from salt
+
+    Remove check results from checks that no longer exist
+
+    """
+    check_names = request.registry.palantir_checks
+    request.db.query(CheckResult)\
+            .filter(CheckResult.check.notin_(check_names))\
+            .delete(synchronize_session=False)
+
+
+    minion_list = request.subreq('palantir_list_minions').keys()
+    minions = set(minion_list)
+    old_minions = set(itertools.chain.from_iterable(
+        request.db.query(CheckResult.minion)
+        .group_by(CheckResult.minion).all()))
+    removed = old_minions - minions
+    added = minions - old_minions
+    for minion in removed:
+        request.subreq('palantir_delete_minion', minion=minion)
+    return {
+        'removed': list(removed),
+        'added': list(added),
+    }
