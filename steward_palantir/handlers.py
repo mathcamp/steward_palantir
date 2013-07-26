@@ -1,8 +1,9 @@
 """ Check result handlers """
+import logging
 import re
 
-import logging
 from jinja2 import Template
+from pyramid.security import unauthenticated_userid
 
 
 LOG = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ def run_handlers(request, result, handlers, render_args=None):
             # Render any templated handler parameters
             for key, value in params.items():
                 if isinstance(value, basestring):
-                    render_args.update(result=result, check=check)
+                    render_args.update(result=result, check=check,
+                                       request=request,
+                                       userid=unauthenticated_userid(request))
                     params[key] = Template(value).render(**render_args)
             handler_result = handler(request, result, **params)
             # If the handler returns True, don't pass to further handlers

@@ -180,6 +180,8 @@ the jinja templating syntax. The available variables are:
 
 * ``result`` - instance of ``steward_palantir.models.CheckResult``
 * ``check`` - instance of ``steward_palantir.check.Check``
+* ``request`` - The pyramid request
+* ``userid`` - The result of ``pyramid.security.unauthenticated_userid``
 
 You can use this for contextual emails::
 
