@@ -9,7 +9,7 @@ from pyramid.path import DottedNameResolver
 from steward.settings import asdict
 
 from .check import Check, CheckRunner
-from .handlers import log_handler, absorb, mail, alias
+from .handlers import log_handler, absorb, mail, Alias
 
 
 LOG = logging.getLogger(__name__)
@@ -119,8 +119,7 @@ def includeme(config):
         for name, data in iterate_yaml_files(alias_dir):
             if name in config.registry.palantir_handlers:
                 raise ValueError("Duplicate Palantir alias '%s'" % name)
-            config.registry.palantir_handlers[name] = \
-                    functools.partial(alias, data)
+            config.registry.palantir_handlers[name] = Alias(data)
 
     # Set up the route urls
     config.add_route('palantir_list_checks', '/palantir/check/list')

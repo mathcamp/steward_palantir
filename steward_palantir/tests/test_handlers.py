@@ -5,7 +5,7 @@ from pyramid.testing import DummyRequest
 from unittest import TestCase
 
 from ..check import Check
-from ..handlers import absorb, alias
+from ..handlers import absorb, Alias
 from ..models import CheckResult
 
 
@@ -41,10 +41,12 @@ class TestAlias(HandlerTest):
         self.kwargs = {}
         self.data = {'kwargs': self.kwargs,
                      'handlers': self.handlers}
+        self.render_args = {}
+        self.alias = Alias(self.data)
 
     def test_handler_sequence(self):
         """ Alias runs all the handlers in sequence """
-        alias(self.data, self.request, self.result())
+        self.alias(self.request, self.result(), self.render_args)
         self.assertTrue(self.h1.called)
         self.assertTrue(self.h2.called)
 
@@ -52,7 +54,7 @@ class TestAlias(HandlerTest):
         """ The alias's kwargs field is used as the default template values """
         self.handlers[0]['handler1'] = {'test':'{{ test }}'}
         self.kwargs['test'] = 'secret'
-        alias(self.data, self.request, self.result())
+        self.alias(self.request, self.result(), self.render_args)
         self.h1.assert_called_once_with(self.request, ANY,
                                         test=self.kwargs['test'])
 
@@ -61,8 +63,16 @@ class TestAlias(HandlerTest):
         self.handlers[0]['handler1'] = {'test':'{{ test }}'}
         self.kwargs['test'] = 'secret'
         test = 'other_secret'
-        alias(self.data, self.request, self.result(), test=test)
+        self.alias(self.request, self.result(), self.render_args, test=test)
         self.h1.assert_called_once_with(self.request, ANY, test=test)
+
+    def test_pass_render_args(self):
+        """ Alias should be forwarded the render_args from run_handlers """
+        self.handlers[0]['handler1'] = {'test':'{{ test }}'}
+        self.render_args['test'] = 'secret'
+        self.alias(self.request, self.result(), self.render_args)
+        self.h1.assert_called_once_with(self.request, ANY,
+                                        test=self.render_args['test'])
 
 
 class TestAbsorb(HandlerTest):

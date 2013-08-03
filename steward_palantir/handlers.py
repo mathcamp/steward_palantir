@@ -23,7 +23,9 @@ def run_handlers(request, result, handlers, render_args=None):
 
     """
     if render_args is None:
-        render_args = {}
+        template_args = {}
+    else:
+        template_args = dict(render_args)
     check = request.registry.palantir_checks[result.check]
     for handler_dict in handlers:
         handler_name, params = handler_dict.items()[0]
@@ -35,11 +37,16 @@ def run_handlers(request, result, handlers, render_args=None):
             # Render any templated handler parameters
             for key, value in params.items():
                 if isinstance(value, basestring):
-                    render_args.update(result=result, check=check,
+                    template_args.update(result=result, check=check,
                                        request=request,
                                        userid=unauthenticated_userid(request))
-                    params[key] = Template(value).render(**render_args)
-            handler_result = handler(request, result, **params)
+                    params[key] = Template(value).render(**template_args)
+            # If the handler is an alias, pass through the render_args
+            if isinstance(handler, Alias):
+                handler_result = handler(request, result, render_args,
+                                         **params)
+            else:
+                handler_result = handler(request, result, **params)
             # If the handler returns True, don't pass to further handlers
             if handler_result is True:
                 LOG.debug("Handler '%s' stopped propagation", handler_name)
@@ -48,7 +55,7 @@ def run_handlers(request, result, handlers, render_args=None):
             LOG.exception("Error running handler '%s'", handler_name)
             return True
 
-def alias(data, request, result, **kwargs):
+class Alias(object):
     """
     Check handler for calling other check handlers
 
@@ -56,10 +63,15 @@ def alias(data, request, result, **kwargs):
     in the README
 
     """
-    render_args = data.get('kwargs', {})
-    render_args.update(kwargs)
-    handlers = data['handlers']
-    return run_handlers(request, result, handlers, render_args)
+    def __init__(self, data):
+        self.data = data
+
+    def __call__(self, request, result, render_args, **kwargs):
+
+        render_args.update(self.data.get('kwargs', {}))
+        render_args.update(kwargs)
+        handlers = self.data['handlers']
+        return run_handlers(request, result, handlers, render_args)
 
 def log_handler(request, result, message=None):
     """
