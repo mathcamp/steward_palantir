@@ -12,6 +12,7 @@ from .models import CheckDisabled, MinionDisabled, CheckResult, Alert
 
 LOG = logging.getLogger(__name__)
 
+
 @view_config(route_name='palantir_run_check', renderer='json',
              permission='palantir_write')
 def run_check(request):
@@ -48,7 +49,7 @@ def run_check(request):
         response = {'__global__': response}
     else:
         expected_minions = request.subreq('salt_match', tgt=check.target,
-                expr_form=check.expr_form)
+                                          expr_form=check.expr_form)
         if expected_minions is None:
             target = check.target
             expr_form = check.expr_form
@@ -66,8 +67,8 @@ def run_check(request):
                 return 'No minions matched'
 
         response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
-                                kwarg=check.command, expr_form=expr_form,
-                                timeout=check.timeout)
+                                  kwarg=check.command, expr_form=expr_form,
+                                  timeout=check.timeout)
 
     if expected_minions is None:
         expected_minions = response.keys()
@@ -88,7 +89,7 @@ def run_check(request):
         })
 
         check_result = request.db.query(CheckResult)\
-                .filter_by(check=check_name, minion=minion).first()
+            .filter_by(check=check_name, minion=minion).first()
         if check_result is None:
             check_result = CheckResult(minion, check.name)
             request.db.add(check_result)
@@ -103,27 +104,37 @@ def run_check(request):
         check_result.last_run = datetime.now()
 
         # Run all the event handlers
-        handler_result = run_handlers(request, check_result, check.handlers)
-
-        if handler_result is not True:
-            if check_result.alert and check_result.retcode == 0:
-                check_result.alert = False
-                request.db.query(Alert).filter_by(minion=minion,
-                                                  check=check_name).delete()
-                request.subreq('pub', name='palantir/alert/resolved',
-                                data=check_result.__json__(request))
-                run_handlers(request, check_result, check.resolved)
-
-            elif not check_result.alert and check_result.retcode != 0:
-                check_result.alert = True
-                request.db.add(Alert.from_result(check_result))
-                request.subreq('pub', name='palantir/alert/raised',
-                                data=check_result.__json__(request))
-                run_handlers(request, check_result, check.raised)
+        handle_result(request, check, check_result)
 
         check_results[minion] = check_result
 
     return check_results
+
+
+def handle_result(request, check, check_result):
+    """ Run the check handlers and raise/resolve alerts if necessary """
+    handler_result = run_handlers(request, check_result, check.handlers)
+
+    if check_result.retcode in (0, 1):
+        fuzzy_code = check_result.retcode
+    else:
+        fuzzy_code = 2
+
+    if handler_result is not True and check_result.alert != fuzzy_code:
+        check_result.alert = fuzzy_code
+        request.db.query(Alert).filter_by(minion=check_result.minion,
+                                          check=check_result.check).delete()
+        if fuzzy_code == 0:
+            request.subreq('pub', name='palantir/alert/resolved',
+                           data=check_result.__json__(request))
+            run_handlers(request, check_result, check.resolved)
+
+        else:
+            request.db.add(Alert.from_result(check_result))
+            request.subreq('pub', name='palantir/alert/raised',
+                           data=check_result.__json__(request))
+            run_handlers(request, check_result, check.raised)
+
 
 @view_config(route_name='palantir_list_checks', renderer='json',
              permission='palantir_read')
@@ -136,9 +147,10 @@ def list_checks(request):
         data['enabled'] = not bool(request.db.query(CheckDisabled)
                                    .filter_by(name=name).first())
         data['minions'] = request.subreq('salt_match', tgt=check.target,
-                                          expr_form=check.expr_form)
+                                         expr_form=check.expr_form)
         json_checks[name] = data
     return json_checks
+
 
 @view_config(route_name='palantir_get_minion_check', renderer='json',
              permission='palantir_read')
@@ -156,6 +168,7 @@ def get_check(request):
     check = request.param('check')
     return request.db.query(CheckResult).filter_by(minion=minion,
                                                    check=check).one()
+
 
 @view_config(route_name='palantir_toggle_check', permission='palantir_write')
 def toggle_check(request):
@@ -177,11 +190,13 @@ def toggle_check(request):
             request.db.add(CheckDisabled(check))
     return request.response
 
+
 @view_config(route_name='palantir_list_alerts', renderer='json',
              permission='palantir_read')
 def list_alerts(request):
     """ List all current alerts """
     return request.db.query(Alert).all()
+
 
 @view_config(route_name='palantir_resolve_alert', permission='palantir_write')
 def resolve_alert(request):
@@ -195,9 +210,11 @@ def resolve_alert(request):
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
     render_args = {'marked_resolved': True}
     run_handlers(request, result, check.resolved, render_args=render_args)
-    data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request)}
+    data = {'reason': 'Marked resolved by %s' %
+            unauthenticated_userid(request)}
     request.subreq('pub', name='palantir/alert/resolved', data=data)
     return request.response
+
 
 @view_config(route_name='palantir_list_handlers', renderer='json',
              permission='palantir_read')
@@ -205,6 +222,7 @@ def list_handlers(request):
     """ List all current handlers """
     return {name: handler.__doc__ for name, handler in
             request.registry.palantir_handlers.iteritems()}
+
 
 @view_config(route_name='palantir_list_minions', renderer='json',
              permission='palantir_read')
@@ -224,6 +242,7 @@ def list_minions(request):
     }
     return minions
 
+
 @view_config(route_name='palantir_delete_minion', permission='palantir_write')
 def delete_minion(request):
     """ Delete a minion and its data """
@@ -231,6 +250,7 @@ def delete_minion(request):
     request.db.query(MinionDisabled).filter_by(name=minion).delete()
     request.db.query(CheckResult).filter_by(minion=minion).delete()
     return request.response
+
 
 @view_config(route_name='palantir_get_minion', renderer='json',
              permission='palantir_read')
@@ -241,8 +261,9 @@ def get_minion(request):
     results = request.db.query(CheckResult).filter_by(minion=minion).all()
     data['checks'] = results
     data['enabled'] = not bool(request.db.query(MinionDisabled)
-                            .filter_by(name=minion).first())
+                               .filter_by(name=minion).first())
     return data
+
 
 @view_config(route_name='palantir_toggle_minion', permission='palantir_write')
 def toggle_minion(request):
@@ -263,6 +284,7 @@ def toggle_minion(request):
         else:
             request.db.add(MinionDisabled(minion))
     return request.response
+
 
 @view_config(route_name='palantir_toggle_minion_check',
              permission='palantir_write')
@@ -289,6 +311,7 @@ def toggle_minion_check(request):
         result.enabled = enabled
     return request.response
 
+
 @view_config(route_name='palantir_prune', renderer='json',
              permission='palantir_write')
 def prune_data(request):
@@ -300,9 +323,8 @@ def prune_data(request):
     """
     check_names = request.registry.palantir_checks
     request.db.query(CheckResult)\
-            .filter(CheckResult.check.notin_(check_names))\
-            .delete(synchronize_session=False)
-
+        .filter(CheckResult.check.notin_(check_names))\
+        .delete(synchronize_session=False)
 
     minion_list = request.subreq('palantir_list_minions').keys()
     minions = set(minion_list)

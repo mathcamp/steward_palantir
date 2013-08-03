@@ -130,8 +130,8 @@ class CheckResult(Base):
         The time at which this check was last run
     count : int
         How many times this check has return ``retcode``
-    alert : bool
-        If this check has become an alert or not
+    alert : int
+        Alert status (0 - success, 1 - warning, 2 - error)
     enabled : bool
 
     """
@@ -144,7 +144,7 @@ class CheckResult(Base):
     retcode = Column(Integer())
     last_run = Column(DateTime())
     count = Column(Integer(), nullable=False)
-    alert = Column(Boolean(), index=True)
+    alert = Column(Integer(), index=True)
     enabled = Column(Boolean(), nullable=False)
 
     def __init__(self, minion, check):
@@ -152,7 +152,7 @@ class CheckResult(Base):
         self.check = check
         self.count = 1
         self.enabled = True
-        self.alert = False
+        self.alert = 0
 
     def __json__(self, request):
         return {
