@@ -249,6 +249,7 @@ def delete_minion(request):
     minion = request.param('minion')
     request.db.query(MinionDisabled).filter_by(name=minion).delete()
     request.db.query(CheckResult).filter_by(minion=minion).delete()
+    request.db.query(Alert).filter_by(minion=minion).delete()
     return request.response
 
 
