@@ -205,8 +205,9 @@ def resolve_alert(request):
     check_name = request.param('check')
     check = request.registry.palantir_checks[check_name]
     result = request.db.query(CheckResult).filter_by(minion=minion,
-                                                     check=check_name).one()
-    result.alert = False
+                                                     check=check_name).first()
+    if result is not None:
+        result.alert = False
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
     render_args = {'marked_resolved': True}
     run_handlers(request, result, check.resolved, render_args=render_args)
