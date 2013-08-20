@@ -208,9 +208,9 @@ def resolve_alert(request):
                                                      check=check_name).first()
     if result is not None:
         result.alert = False
+        render_args = {'marked_resolved': True}
+        run_handlers(request, result, check.resolved, render_args=render_args)
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
-    render_args = {'marked_resolved': True}
-    run_handlers(request, result, check.resolved, render_args=render_args)
     data = {'reason': 'Marked resolved by %s' %
             unauthenticated_userid(request)}
     request.subreq('pub', name='palantir/alert/resolved', data=data)
