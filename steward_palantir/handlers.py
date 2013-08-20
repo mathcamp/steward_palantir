@@ -41,9 +41,9 @@ def run_handlers(request, result, handlers, render_args=None):
                                        request=request,
                                        userid=unauthenticated_userid(request))
                     params[key] = Template(value).render(**template_args)
-            # If the handler is an alias, pass through the render_args
+            # If the handler is an alias, pass through the template_args
             if isinstance(handler, Alias):
-                handler_result = handler(request, result, render_args,
+                handler_result = handler(request, result, template_args,
                                          **params)
             else:
                 handler_result = handler(request, result, **params)
