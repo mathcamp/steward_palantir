@@ -123,6 +123,7 @@ def includeme(config):
 
     # Set up the route urls
     config.add_route('palantir_list_checks', '/palantir/check/list')
+    config.add_route('palantir_get_check', '/palantir/check/get')
     config.add_route('palantir_run_check', '/palantir/check/run')
     config.add_route('palantir_toggle_check', '/palantir/check/toggle')
 

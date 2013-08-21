@@ -146,15 +146,25 @@ def list_checks(request):
         data = check.__json__(request)
         data['enabled'] = not bool(request.db.query(CheckDisabled)
                                    .filter_by(name=name).first())
-        data['minions'] = request.subreq('salt_match', tgt=check.target,
-                                         expr_form=check.expr_form)
         json_checks[name] = data
     return json_checks
 
+@view_config(route_name='palantir_get_check', renderer='json',
+             permission='palantir_read')
+def get_check(request):
+    """ Get detailed data about a check """
+    name = request.param('check')
+    checks = request.registry.palantir_checks
+    data = checks[name].__json__(request)
+    data['enabled'] = not bool(request.db.query(CheckDisabled)
+                                .filter_by(name=name).first())
+    data['results'] = request.db.query(CheckResult).filter_by(check=name).all()
+
+    return data
 
 @view_config(route_name='palantir_get_minion_check', renderer='json',
              permission='palantir_read')
-def get_check(request):
+def get_minion_check(request):
     """
     Get the current status of a check
 
