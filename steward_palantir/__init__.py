@@ -110,8 +110,9 @@ def includeme(config):
         'absorb': absorb,
         'mail': mail,
     }
-    for name, path in asdict(settings.get('palantir.handlers')):
-        config.registry.palantir_handlers[name] = name_resolver.resolve(path)
+    for name, path in asdict(settings.get('palantir.handlers')).iteritems():
+        config.registry.palantir_handlers[name] = \
+            name_resolver.resolve(path.strip())
 
     # Load the aliases
     alias_dir = settings.get('palantir.alias_dir')
