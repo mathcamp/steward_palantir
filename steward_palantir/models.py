@@ -1,4 +1,5 @@
 """ SQLAlchemy models """
+from collections import defaultdict
 from datetime import datetime
 from sqlalchemy import Column, Integer, DateTime, UnicodeText, Boolean
 
@@ -166,3 +167,11 @@ class CheckResult(Base):
             'alert': self.alert,
             'enabled': self.enabled,
         }
+
+    @property
+    def normalized_retcode(self):
+        """ The retcode, normalized to 0, 1, or 2 """
+        if self.retcode in (0, 1):
+            return self.retcode
+        else:
+            return 2

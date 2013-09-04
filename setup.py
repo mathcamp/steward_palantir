@@ -14,8 +14,6 @@ REQUIREMENTS = [
     'steward_sqlalchemy',
     'steward_tasks',
     'PyYAML',
-    'jinja2',
-    'mock',
 ]
 
 DATA = {

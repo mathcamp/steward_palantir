@@ -2,78 +2,46 @@
 import logging
 import re
 
-from jinja2 import Template
-from pyramid.security import unauthenticated_userid
-
 
 LOG = logging.getLogger(__name__)
 
-def run_handlers(request, result, handlers, render_args=None):
-    """
-    Run a list of handlers on a check result
 
-    Parameters
-    ----------
-    result : :class:`~steward_palantir.models.CheckResult`
-    handlers : list
-        A list of handlers in the same format as the base ``handlers``
-        attribute of a check.
-    render_args : dict
-        Values to add to the environment when rendering jinja strings
+class BaseHandler(object):
 
-    """
-    if render_args is None:
-        template_args = {}
-    else:
-        template_args = dict(render_args)
-    check = request.registry.palantir_checks[result.check]
-    for handler_dict in handlers:
-        handler_name, params = handler_dict.items()[0]
-        if params is None:
-            params = {}
-        handler = request.registry.palantir_handlers[handler_name]
-        try:
-            LOG.debug("Running handler '%s'", handler_name)
-            # Render any templated handler parameters
-            for key, value in params.items():
-                if isinstance(value, basestring):
-                    template_args.update(result=result, check=check,
-                                       request=request,
-                                       userid=unauthenticated_userid(request))
-                    params[key] = Template(value).render(**template_args)
-            # If the handler is an alias, pass through the template_args
-            if isinstance(handler, Alias):
-                handler_result = handler(request, result, template_args,
-                                         **params)
-            else:
-                handler_result = handler(request, result, **params)
-            # If the handler returns True, don't pass to further handlers
-            if handler_result is True:
-                LOG.debug("Handler '%s' stopped propagation", handler_name)
-                return True
-        except:
-            LOG.exception("Error running handler '%s'", handler_name)
-            return True
+    """ Base class for check handlers """
+    name = None
 
-class Alias(object):
-    """
-    Check handler for calling other check handlers
+    def __call__(self, request, check, results, **kwargs):
+        """
+        Handle the results of a check
 
-    Do not use this handler directly. Instead, use the alias system mentioned
-    in the README
+        Parameters
+        ----------
+        request : :class:`pyramid.request.Request`
+        check : :class:`steward_palantir.check.Check`
+        results : list
+            The list of :class:`steward_palantir.models.CheckResult`s to process
+        **kwargs : dict
+            Other parameters for the handler
 
-    """
-    def __init__(self, data):
-        self.data = data
+        Returns
+        -------
+        result : bool or list
+            If result is True, prevent any successive handlers from running on
+            these results. If result is a list of
+            :class:`steward_palantir.models.CheckResult`s, only run successive
+            handlers on that list of results. If False or None, run successive
+            handlers on all results.
 
-    def __call__(self, request, result, render_args, **kwargs):
+        """
+        raise NotImplementedError
 
-        render_args.update(self.data.get('kwargs', {}))
-        render_args.update(kwargs)
-        handlers = self.data['handlers']
-        return run_handlers(request, result, handlers, render_args)
+    def __json__(self, request):
+        return "Handler(%s)" % self.name
 
-def log_handler(request, result, message=None):
+
+class LogHandler(BaseHandler):
+
     """
     Check handler that logs the result of a check
 
@@ -83,26 +51,32 @@ def log_handler(request, result, message=None):
         Specific message to send to the logs
 
     """
-    if result.retcode == 0:
-        fxn = LOG.info
-        msg = 'succeeded'
-    elif result.retcode == 1:
-        fxn = LOG.warn
-        msg = 'warning'
-    else:
-        fxn = LOG.warn
-        msg = 'error'
+    name = 'log'
 
-    if message is None:
-        fxn("%s check '%s' %s %d times with code %d\nSTDOUT:\n%s\nSTDERR:\n%s",
-            result.minion, result.check, msg, result.count, result.retcode,
-            result.stdout, result.stderr)
-    else:
-        fxn(message)
+    def __init__(self, message=None):
+        self.message = message
 
-def absorb(request, result, success=None, warn=None, error=None,
-           alert=None, count=1, success_count=1, out_match=None,
-           err_match=None, out_err_match=None, retcodes=None):
+    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+        if normalized_retcode == 0:
+            fxn = LOG.info
+            msg = 'succeeded'
+        elif normalized_retcode == 1:
+            fxn = LOG.warn
+            msg = 'warning'
+        else:
+            fxn = LOG.warn
+            msg = 'error'
+
+        if self.message is None:
+            fxn("check '%s' %s on %s",
+                check.name, msg, ', '.join([result.minion for result in
+                                            results]))
+        else:
+            fxn(self.message)
+
+
+class AbsorbHandler(BaseHandler):
+
     """
     Check handler that acts as a filter and runs before other handlers
 
@@ -117,10 +91,7 @@ def absorb(request, result, success=None, warn=None, error=None,
     alert : bool, optional
         If True, absorb alerts. If False, absorb non-alerts. (default None)
     count : int, optional
-        Absorb non-success checks unless the check has returned that result
-        this many times (default 1)
-    success_count : int, optional
-        Absorb success checks unless the check has succeeded this many times
+        Absorb checks unless the check has returned that result this many times
         (default 1)
     out_match : str, optional
         If provided, absorb any check whose stdout matches this regex
@@ -149,47 +120,69 @@ def absorb(request, result, success=None, warn=None, error=None,
                 - alert:
 
     """
-    if success is not None and result.retcode == 0:
-        return success
-    if warn is not None and result.retcode == 1:
-        return warn
-    if error is not None and result.retcode not in (0, 1):
-        return error
-    if result.retcode != 0 and result.count < count:
-        return True
-    if result.retcode == 0 and result.count < success_count:
-        return True
+    name = 'absorb'
 
-    if alert is not None:
-        if alert and result.alert:
-            return True
-        elif not alert and not result.alert:
-            return True
+    def __init__(self, success=None, warn=None, error=None,
+                 alert=None, count=1, out_match=None,
+                 err_match=None, out_err_match=None, retcodes=None):
+        self.success = success
+        self.warn = warn
+        self.error = error
+        self.alert = alert
+        self.count = count
+        self.out_match = out_match
+        self.err_match = err_match
+        self.out_err_match = out_err_match
+        self.retcodes = retcodes
 
-    if out_match and re.match(out_match, result.stdout):
-        return True
-    if err_match and re.match(err_match, result.stderr):
-        return True
-    if out_err_match and (re.match(out_err_match, result.stdout) or
-                          re.match(out_err_match, result.stderr)):
-        return True
-    if retcodes is not None:
-        ranges = str(retcodes).split(',')
-        for intrange in ranges:
-            try:
-                if result.retcode == int(intrange):
-                    return True
-            except ValueError:
-                split = intrange.split('-')
-                if split[1]:
-                    low, high = split
-                    if int(low) <= result.retcode <= int(high):
-                        return True
-                else:
-                    if result.retcode >= int(split[0]):
-                        return True
+    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+        if self.success is not None and normalized_retcode == 0:
+            return self.success
+        if self.warn is not None and normalized_retcode == 1:
+            return self.warn
+        if self.error is not None and normalized_retcode not in (0, 1):
+            return self.error
 
-def mail(request, result, **kwargs):
+        if self.alert is not None:
+            if self.alert and normalized_retcode != 0:
+                return True
+            elif not self.alert and normalized_retcode == 0:
+                return True
+
+        if self.count > 1:
+            return filter(lambda r: r.count >= self.count, results)
+
+        if self.out_match:
+            return filter(lambda r: re.match(self.out_match, r.stdout), results)
+        if self.err_match:
+            return filter(lambda r: re.match(self.err_match, r.stdout), results)
+        if self.out_err_match:
+            return filter(lambda r: re.match(self.out_err_match, r.stdout) or
+                          re.match(self.out_err_match, r.stderr), results)
+
+        if self.retcodes is not None:
+            ranges = str(self.retcodes).split(',')
+
+            def match_retcode(result):
+                """ Filter function for checking if retcode is in a range """
+                for intrange in ranges:
+                    try:
+                        if result.retcode == int(intrange):
+                            return True
+                    except ValueError:
+                        split = intrange.split('-')
+                        if split[1]:
+                            low, high = split
+                            if int(low) <= result.retcode <= int(high):
+                                return True
+                        else:
+                            if result.retcode >= int(split[0]):
+                                return True
+            return filter(match_retcode, results)
+
+
+class MailHandler(BaseHandler):
+
     """
     Check handler that sends emails
 
@@ -215,4 +208,10 @@ def mail(request, result, **kwargs):
     This requires :mod:`steward_smtp` to be included in the app
 
     """
-    request.subreq('mail', **kwargs)
+    name = 'mail'
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+        request.subreq('mail', **self.kwargs)

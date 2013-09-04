@@ -55,13 +55,14 @@ Configuration
     # Directory containing the checks. Optional. Default /etc/steward/checks
     palantir.checks_dir = /etc/steward/checks
 
-    # Dictionary mapping handler names to dotted paths of a handler function.
-    # Optional. See steward_palantir.handlers for built-in handlers.
+    # List of additional handlers. May specify the dotted path to a handler,
+    # the dotted path to a module with handlers in it, the file name of a
+    # module with handlers in it, or a directory that contains python files
+    # with handlers. Optional. Default /etc/steward/handlers. See
+    # steward_palantir.handlers for built-in handlers.
     palantir.handlers =
-        absorb = steward_palantir.handlers.absorb
-
-    # Directory containing handler aliases. Optional
-    palantir.alias_dir = /etc/steward/aliases
+        /etc/steward/handlers
+        my_package.handlers
 
     # List of fields that are required in your check metadata. Used to enforce
     # good conventions within your organization. Optional.
@@ -136,7 +137,6 @@ to make about your system. Here is an annotated example of a complete check::
         hours: 3
         minutes: 15
         seconds: 30
-        microseconds: 88
 
 You can put as many checks as you want into a single file, and you can put as
 many check files as you want into the check_dir. The files must end with
@@ -155,113 +155,71 @@ Typically for an error your script should just use the exit code '2', but you
 may use any other non-0, non-1 exit code if you want to write a custom handler
 to perform special logic.
 
+Advanced Checks
+===============
+You may also write checks in pure python instead of YAML. This is slightly less
+pretty, but allows you to heavily customize the handler behavior. Here is the
+same simple health check from before re-written in python.
+
+/etc/steward/checks/up.py::
+
+    from steward_palantir.check import Check
+
+    class HealthCheck(Check):
+        def __init__(self):
+            super(HealthCheck, self).__init__(
+                'health',
+                {'cmd': '/bin/true'},
+                {'minutes': 1},
+                target='*',
+                handlers=(
+                    {'log': None},
+                ),
+            )
+
+Pretty much the same as before. Except you can override methods to do some
+nifty tricks. For example, here's the same check, but it has a special set of
+handlers that only run when a user manually marks an alert as resolved.
+
+/etc/steward/checks/up.py::
+
+    from steward_palantir.check import Check
+
+    class HealthCheck(Check):
+        def __init__(self):
+            super(HealthCheck, self).__init__(
+                'health',
+                {'cmd': '/bin/true'},
+                {'minutes': 1},
+                target='*',
+            )
+            self.mark_resolved_handlers = (
+                {'log': None},
+            )
+
+    def _get_handlers(self, request, action, normalized_retcode, results,
+                     **kwargs):
+        """ Get the list of handlers to run. Useful to override """
+        if action == 'resolve' and kwargs.get('marked_resolved'):
+            return self.marked_resolved_handlers
+        else:
+            return super(HealthCheck, self)._get_handlers(request, action,
+                normalized_retcode, results, **kwargs)
+
 Handlers
 ========
 Handlers are functions that are run on the result of a check to do alerting,
 logging, filtering, or any other processing. A good place to start for
-reference is the built-in handlers in ``steward_palantir.handlers``. All
-handlers must take the following arguments:
+reference is the built-in handlers in ``steward_palantir.handlers``.
 
-* **request** - The pyramid Request object
-* **result** - The ``steward_palantir.models.CheckResult`` object for the check
+Any handlers you write must subclass ``steward_palantir.handlers.BaseHandler``.
 
-In addition, your custom handler may also specify any number of keyword
-arguments. Those are the values filled in by the ``handlers`` section of the
-check file.
-
-If a handler returns ``True``, it will stop running handlers. Any successive
+If a handler returns ``True``, the check will stop running handlers. Any successive
 handlers will not be run. This technique can be used, for example, to require
-multiple failed checks before raising an alert.
-
-Handler Templating
-------------------
-If you pass in an argument to a handler as a string, you may render it using
-the jinja templating syntax. The available variables are:
-
-* ``result`` - instance of ``steward_palantir.models.CheckResult``
-* ``check`` - instance of ``steward_palantir.check.Check``
-* ``request`` - The pyramid request
-* ``userid`` - The result of ``pyramid.security.unauthenticated_userid``
-
-You can use this for contextual emails::
-
-    raised:
-      - mail:
-          subject: "{{ result.check }} failed on {{ result.minion }}"
-          body: |
-            {{ result.check }} check failed on {{ result.minion }} with exit code {{ result.retcode }}
-            STDOUT:
-            {{ result.stdout }}
-            STDERR:
-            {{ result.stderr }}
-
-If you specify additional data in the check's 'meta' field, you can use that in
-the formatting. It is highly recommended that you establish a good system of
-metadata and enforce it with the 'required_meta' option mentioned above. For
-example, doesn't this email look SO much better than the last one?
-
-::
-
-    raised:
-      - mail:
-          mail_to: "{{ check.meta.owners }}"
-          subject: "{{ result.check }} failed on {{ result.minion }}"
-          body: |
-            {{ result.check }} check failed on {{ result.minion }} with exit code {{ result.retcode }}
-
-            What this check does: {{ check.meta.description }}
-            Possible causes for this error: {{ check.meta.causes }}
-
-            STDOUT:
-            {{ result.stdout }}
-            STDERR:
-            {{ result.stderr }}
-
-Which one would you rather receive at 3am on a Saturday?
-
-Aliases
--------
-You may find yourself creating complex handler pipelines that you want to use
-for more than one check. To keep yourself DRY, create an alias. The first thing
-you have to do is set the alias_dir configuration value::
-
-    palantir.alias_dir = /etc/steward/aliases
-
-Now you need to put an alias into that directory::
-
-    mailalert:
-      kwargs:
-        title: ALERT
-      handlers:
-        - log:
-        - mail:
-          subject: "[{{ title }}] {{ minion }} {{ check.name }} check"
-          body: "{{ minion }} {{ check.name }} has status {{ status['retcode'] }}"
-
-Now you can refer to your new alias inside of a check::
-
-    healthcheck:
-      target: "*"
-      timeout: 10
-      command:
-        cmd: /bin/true
-        timeout: 1
-
-      raised:
-        - mailalert:
-          title: ALERT
-
-      resolved:
-        - mailalert:
-          title: RESOLVED
-
-      schedule:
-        seconds: 30
-
-Note that the alias system is useful, but not super flexible. For example, it
-can't conditionally re-arrange the order of its handlers based on parameters.
-It also can't template non-string arguments. If you need these, or other
-complex behaviors, you should just write a custom handler.
+multiple failed checks before raising an alert. Since handlers run on a list of
+check results, you may want to continue processessing only some of those
+results. If your handler returns a list of check results, successive handlers
+will only run on those results.
 
 Misc
 ====

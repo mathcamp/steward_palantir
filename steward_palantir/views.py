@@ -1,12 +1,12 @@
 """ Endpoints for Palantir """
 import itertools
+import logging
+from collections import defaultdict
 from datetime import datetime
 
-import logging
 from pyramid.security import unauthenticated_userid
 from pyramid.view import view_config
 
-from .handlers import run_handlers
 from .models import CheckDisabled, MinionDisabled, CheckResult, Alert
 
 
@@ -77,6 +77,7 @@ def run_check(request):
 
     # Process results for each minion
     check_results = {}
+    changed_results = defaultdict(list)
     for minion in combined_minions:
         if not do_minion_check(minion, check_name):
             continue
@@ -103,37 +104,44 @@ def run_check(request):
         check_result.retcode = result['retcode']
         check_result.last_run = datetime.now()
 
-        # Run all the event handlers
-        handle_result(request, check, check_result)
+        handler_result = check.run_handlers(request, 'post',
+                                            check_result.normalized_retcode,
+                                            [check_result])
+
+        if check_result.alert != check_result.normalized_retcode and \
+                handler_result is not True:
+            changed_results[
+                check_result.normalized_retcode].append(check_result)
 
         check_results[minion] = check_result
+
+    # Run all the event handlers
+    for normalized_retcode, results in changed_results.iteritems():
+        handle_results(request, check, normalized_retcode, results)
+        for result in results:
+            result.alert = result.normalized_retcode
 
     return check_results
 
 
-def handle_result(request, check, check_result):
+def handle_results(request, check, normalized_retcode, results):
     """ Run the check handlers and raise/resolve alerts if necessary """
-    handler_result = run_handlers(request, check_result, check.handlers)
+    minions = [result.minion for result in results]
 
-    if check_result.retcode in (0, 1):
-        fuzzy_code = check_result.retcode
+    # delete any existing alerts
+    request.db.query(Alert).filter(Alert.minion.in_(minions)).\
+        filter_by(check=check.name).delete(synchronize_session=False)
+
+    result_data = {'results': [result.__json__(request) for result in results]}
+    if normalized_retcode == 0:
+        request.subreq('pub', name='palantir/alert/resolved', data=result_data)
+        check.run_handlers(request, 'resolve', normalized_retcode, results)
+
     else:
-        fuzzy_code = 2
-
-    if handler_result is not True and check_result.alert != fuzzy_code:
-        check_result.alert = fuzzy_code
-        request.db.query(Alert).filter_by(minion=check_result.minion,
-                                          check=check_result.check).delete()
-        if fuzzy_code == 0:
-            request.subreq('pub', name='palantir/alert/resolved',
-                           data=check_result.__json__(request))
-            run_handlers(request, check_result, check.resolved)
-
-        else:
-            request.db.add(Alert.from_result(check_result))
-            request.subreq('pub', name='palantir/alert/raised',
-                           data=check_result.__json__(request))
-            run_handlers(request, check_result, check.raised)
+        for result in results:
+            request.db.add(Alert.from_result(result))
+        request.subreq('pub', name='palantir/alert/raised', data=result_data)
+        check.run_handlers(request, 'raise', normalized_retcode, results)
 
 
 @view_config(route_name='palantir_list_checks', renderer='json',
@@ -149,6 +157,7 @@ def list_checks(request):
         json_checks[name] = data
     return json_checks
 
+
 @view_config(route_name='palantir_get_check', renderer='json',
              permission='palantir_read')
 def get_check(request):
@@ -157,10 +166,11 @@ def get_check(request):
     checks = request.registry.palantir_checks
     data = checks[name].__json__(request)
     data['enabled'] = not bool(request.db.query(CheckDisabled)
-                                .filter_by(name=name).first())
+                               .filter_by(name=name).first())
     data['results'] = request.db.query(CheckResult).filter_by(check=name).all()
 
     return data
+
 
 @view_config(route_name='palantir_get_minion_check', renderer='json',
              permission='palantir_read')
@@ -218,8 +228,8 @@ def resolve_alert(request):
                                                      check=check_name).first()
     if result is not None:
         result.alert = False
-        render_args = {'marked_resolved': True}
-        run_handlers(request, result, check.resolved, render_args=render_args)
+        check.run_handlers(request, 'resolve', 0, [result],
+                           marked_resolved=True)
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
     data = {'reason': 'Marked resolved by %s' %
             unauthenticated_userid(request)}
