@@ -135,6 +135,7 @@ class Check(object):
                 handler_instances.append(request.registry.palantir_handlers[name](**args))
             else:
                 handler_instances.append(handler)
+        return handler_instances
 
     def _run_handler_list(self, request, normalized_retcode, results, handlers,
                           **kwargs):
