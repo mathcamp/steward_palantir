@@ -227,9 +227,9 @@ def resolve_alert(request):
     result = request.db.query(CheckResult).filter_by(minion=minion,
                                                      check=check_name).first()
     if result is not None:
-        result.alert = False
         check.run_handlers(request, 'resolve', 0, [result],
                            marked_resolved=True)
+        result.alert = 0
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
     data = {'reason': 'Marked resolved by %s' %
             unauthenticated_userid(request)}
