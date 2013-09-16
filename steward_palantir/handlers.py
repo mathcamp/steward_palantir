@@ -6,19 +6,93 @@ import re
 LOG = logging.getLogger(__name__)
 
 
+class RangeSpec(object):
+
+    """
+    Specification of an integer range
+
+    Parameters
+    ----------
+    spec : int or str
+        numbers or ranges (ex. 1-4) separated by commas. Ranges are inclusive.
+        The final range may have a trailing '-' to indicate 'all values
+        greater than or equal to this number'. (ex. '0,2,100-104,400-')
+
+    """
+    def __init__(self, spec):
+        self.spec = str(spec)
+        self._ranges = self.spec.split(',')
+
+    def __contains__(self, value):
+        if len(self.spec) == 0:
+            return False
+        for intrange in self._ranges:
+            try:
+                if value == int(intrange):
+                    return True
+            except ValueError:
+                split = intrange.split('-')
+                if len(split) == 2 and split[1]:
+                    low, high = split
+                    if int(low) <= value <= int(high):
+                        return True
+                else:
+                    if value >= int(split[0]):
+                        return True
+
+    def __repr__(self):
+        return "Range(%s)" % self.spec
+
+    def __str__(self):
+        return self.spec
+
+
 class BaseHandler(object):
 
     """ Base class for check handlers """
     name = None
 
-    def __call__(self, request, check, results, **kwargs):
+    def handle(self, request, check, result, **kwargs):
         """
-        Handle the results of a check
+        The is called to handle the result of a check every time the check is
+        run
+
+        If this is implemented, the handler may be used in the 'handlers' list
+        of a check.
 
         Parameters
         ----------
         request : :class:`pyramid.request.Request`
         check : :class:`steward_palantir.check.Check`
+        result : :class:`steward_palantir.models.CheckResult`
+        **kwargs : dict
+            Other parameters for the handler
+
+        Returns
+        -------
+        halt : bool
+            If True, stop running the handlers and raise no alerts for this
+            check on this minion.
+
+        """
+        raise NotImplementedError
+
+    def handle_alert(self, request, check, normalized_retcode, results,
+                     **kwargs):
+        """
+        This is called while raising or resolving an alert
+
+        If this is implemented, the handler may be used in the 'raised' and
+        'resolved' lists of a check. This method differs from ``handle`` in
+        that it processes batches of results, which allows for rolling-up
+        notifications.
+
+        Parameters
+        ----------
+        request : :class:`pyramid.request.Request`
+        check : :class:`steward_palantir.check.Check`
+        normalized_retcode : int
+            0, 1, or 2 to denote success, warning, or error
         results : list
             The list of :class:`steward_palantir.models.CheckResult`s to process
         **kwargs : dict
@@ -26,12 +100,10 @@ class BaseHandler(object):
 
         Returns
         -------
-        result : bool or list
-            If result is True, prevent any successive handlers from running on
-            these results. If result is a list of
-            :class:`steward_palantir.models.CheckResult`s, only run successive
-            handlers on that list of results. If False or None, run successive
-            handlers on all results.
+        result : None or list
+            A list of the CheckResults that passed through this handler.
+            Successive handlers will only be run on those CheckResults. If None
+            is returned, all CheckResults will be passed on.
 
         """
         raise NotImplementedError
@@ -56,7 +128,12 @@ class LogHandler(BaseHandler):
     def __init__(self, message=None):
         self.message = message
 
-    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+    def handle(self, request, check, result, **kwargs):
+        self.handle_alert(request, check, result.normalized_retcode, [result],
+                **kwargs)
+
+    def handle_alert(self, request, check, normalized_retcode, results,
+                     **kwargs):
         if normalized_retcode == 0:
             fxn = LOG.info
             msg = 'succeeded'
@@ -83,13 +160,12 @@ class AbsorbHandler(BaseHandler):
     Parameters
     ----------
     success : bool, optional
-        If True, absorb success checks. If False, *never* absorb success checks. (default None)
+        If True, absorb successes. If False, *never* absorb successes. (default
+        None)
     warn : bool, optional
         If True, absorb warnings. If False, *never* absorb warnings. (default None)
     error : bool, optional
         If True, absorb errors. If False, *never* absorb errors. (default None)
-    alert : bool, optional
-        If True, absorb alerts. If False, absorb non-alerts. (default None)
     count : int, optional
         Absorb checks unless the check has returned that result this many times
         (default 1)
@@ -100,85 +176,97 @@ class AbsorbHandler(BaseHandler):
     out_err_match : str, optional
         If provided, absorb any check whose stdout or stderr matches this regex
     retcodes : str, optional
-        Absorb checks whose return codes fall into this set. You may pass in
-        numbers or ranges (ex. 1-4) separated by commas. Ranges are inclusive.
-        The final range may have a trailing '-' to indicate 'and all retcodes
-        greater than or equal to this number'. For example: 0,2,100-104,400-
+        Absorb checks whose return codes fall into this set. This should match
+        the format for :class:`.RangeSpec`
 
     Notes
     -----
-        Here is an example. This will ignore all warnings from the check and
-        only pass through errors if the check fails 3 times in a row.
+    Here is an example. This will ignore all warnings from the check and only
+    pass through errors/successes if the check fails/succeeds 3 times in a row.
 
         ..code-block:: yaml
 
             handlers:
-                - absorb:
-                    count: 3
-                    warn: true
-                - log:
-                - alert:
+              - absorb:
+                  count: 3
+                  warn: true
+              - log:
 
     """
     name = 'absorb'
 
     def __init__(self, success=None, warn=None, error=None,
-                 alert=None, count=1, out_match=None,
-                 err_match=None, out_err_match=None, retcodes=None):
+                 count=1, out_match=None,
+                 err_match=None, out_err_match=None, retcodes=''):
         self.success = success
         self.warn = warn
         self.error = error
-        self.alert = alert
         self.count = count
         self.out_match = out_match
         self.err_match = err_match
         self.out_err_match = out_err_match
-        self.retcodes = retcodes
+        self.retcodes = RangeSpec(retcodes)
 
-    def __call__(self, request, check, normalized_retcode, results, **kwargs):
-        if self.success is not None and normalized_retcode == 0:
+    def handle(self, request, check, result, **kwargs):
+        if self.success is not None and result.normalized_retcode == 0:
             return self.success
-        if self.warn is not None and normalized_retcode == 1:
+        if self.warn is not None and result.normalized_retcode == 1:
             return self.warn
-        if self.error is not None and normalized_retcode not in (0, 1):
+        if self.error is not None and result.normalized_retcode == 2:
             return self.error
 
-        if self.alert is not None:
-            if self.alert and normalized_retcode != 0:
-                return True
-            elif not self.alert and normalized_retcode == 0:
-                return True
+        if self.count > 1 and result.count < self.count:
+            return True
 
-        if self.count > 1:
-            return filter(lambda r: r.count >= self.count, results)
+        if self.out_match and re.match(self.out_match, result.stdout):
+            return True
+        if self.err_match and re.match(self.err_match, result.stderr):
+            return True
+        if self.out_err_match and (re.match(self.out_err_match, result.stdout)
+                                   or re.match(self.out_err_match, result.stderr)):
+            return True
 
-        if self.out_match:
-            return filter(lambda r: re.match(self.out_match, r.stdout), results)
-        if self.err_match:
-            return filter(lambda r: re.match(self.err_match, r.stdout), results)
-        if self.out_err_match:
-            return filter(lambda r: re.match(self.out_err_match, r.stdout) or
-                          re.match(self.out_err_match, r.stderr), results)
+        if self.retcodes is not None and result.retcode in self.retcodes:
+            return True
 
-        if self.retcodes is not None:
-            ranges = str(self.retcodes).split(',')
+    def handle_alert(self, request, check, normalized_retcode, results,
+                     **kwargs):
+        return [result for result in results
+                if self.handle(request, check, result, **kwargs) is not True]
 
-            def match_retcode(result):
-                """ Filter function for checking if retcode is in a range """
-                for intrange in ranges:
-                    try:
-                        if result.retcode == int(intrange):
-                            return True
-                    except ValueError:
-                        split = intrange.split('-')
-                        if split[1]:
-                            low, high = split
-                            if int(low) <= result.retcode <= int(high):
-                                return True
-                        else:
-                            if result.retcode >= int(split[0]):
-                                return True
-            return filter(match_retcode, results)
+
+class MutateHandler(BaseHandler):
+
+    """
+    Check handler that can mutate check results conditionally
+
+    May not be run on alerts.
+
+    Parameters
+    ----------
+    promote_after : int, optional
+        If the check has returned a warning (status 1) this many times, promote
+        it to an error.
+    demote_until : int, optional
+        If the check has returned an error, convert it to a warning unless the
+        count is greater than or equal to this number.
+
+    """
+    name = 'mutate'
+
+    def __init__(self, promote_after=None, demote_until=None):
+        self.promote_after = promote_after
+        self.demote_until = demote_until
+
+    def handle(self, request, check, result, **kwargs):
+
+        if self.promote_after is not None and result.normalized_retcode == 1 \
+                and result.count >= self.promote_after:
+            result.retcode = 2
+
+        if self.demote_until is not None and result.normalized_retcode == 2 \
+                and result.count < self.demote_until:
+            result.retcode = 1
 
 
 class MailHandler(BaseHandler):
@@ -213,5 +301,6 @@ class MailHandler(BaseHandler):
     def __init__(self, **kwargs):
         self.kwargs = kwargs
 
-    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+    def handle_alert(self, request, check, normalized_retcode, results,
+                     **kwargs):
         request.subreq('mail', **self.kwargs)

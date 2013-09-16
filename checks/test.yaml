@@ -23,6 +23,8 @@ badcheck:
     - absorb:
         count: 2
         success: false
+    - mutate:
+        promote_after: 10
 
   raised:
     - log:

@@ -39,14 +39,15 @@ class TwilioHandler(BaseHandler):
         self.token = token
         self.from_num = from_num
 
-    def __call__(self, request, check, normalized_retcode, results, **kwargs):
+    def handle_alert(self, request, check, normalized_retcode, results,
+                     **kwargs):
         token = request.registry.settings.get('palantir.twilio.token',
                                               self.token)
         sid = request.registry.settings.get('palantir.twilio.sid', self.sid)
         from_num = request.registry.settings.get('palantir.twilio.from_num',
                                                  self.from_num)
 
-        from twilio.rest import TwilioRestClient # pylint: disable=F0401
+        from twilio.rest import TwilioRestClient  # pylint: disable=F0401
         client = TwilioRestClient(sid, token)
 
         for to_num in self.to:

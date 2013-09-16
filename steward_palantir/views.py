@@ -104,9 +104,7 @@ def run_check(request):
         check_result.retcode = result['retcode']
         check_result.last_run = datetime.now()
 
-        handler_result = check.run_handlers(request, 'post',
-                                            check_result.normalized_retcode,
-                                            [check_result])
+        handler_result = check.run_handler(request, check_result)
 
         if check_result.alert != check_result.normalized_retcode and \
                 handler_result is not True:
@@ -135,13 +133,13 @@ def handle_results(request, check, normalized_retcode, results):
     result_data = {'results': [result.__json__(request) for result in results]}
     if normalized_retcode == 0:
         request.subreq('pub', name='palantir/alert/resolved', data=result_data)
-        check.run_handlers(request, 'resolve', normalized_retcode, results)
+        check.run_alert_handlers(request, 'resolve', normalized_retcode, results)
 
     else:
         for result in results:
             request.db.add(Alert.from_result(result))
         request.subreq('pub', name='palantir/alert/raised', data=result_data)
-        check.run_handlers(request, 'raise', normalized_retcode, results)
+        check.run_alert_handlers(request, 'raise', normalized_retcode, results)
 
 
 @view_config(route_name='palantir_list_checks', renderer='json',
@@ -227,7 +225,7 @@ def resolve_alert(request):
     result = request.db.query(CheckResult).filter_by(minion=minion,
                                                      check=check_name).first()
     if result is not None:
-        check.run_handlers(request, 'resolve', 0, [result],
+        check.run_alert_handlers(request, 'resolve', 0, [result],
                            marked_resolved=True)
         result.alert = 0
     request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()

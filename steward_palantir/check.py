@@ -115,9 +115,7 @@ class Check(object):
     def _get_handlers(self, request, action, normalized_retcode, results,
                      **kwargs):
         """ Get the list of handlers to run. Useful to override """
-        if action == 'post':
-            return self.handlers
-        elif action == 'resolve':
+        if action == 'resolve':
             return self.resolved
         elif action == 'raise':
             return self.raised
@@ -137,36 +135,44 @@ class Check(object):
                 handler_instances.append(handler)
         return handler_instances
 
-    def _run_handler_list(self, request, normalized_retcode, results, handlers,
-                          **kwargs):
-        """ Run the handlers iteratively """
+    def _run_alert_handler_list(self, request, normalized_retcode, results,
+                                handlers, **kwargs):
+        """
+        Run the alert handlers iteratively
+
+        Returns
+        -------
+        check_results : list
+            List of all the check results that made it through all the handlers
+
+        """
         for handler in handlers:
             try:
                 LOG.debug("Running handler '%s'", handler)
-                handler_result = handler(request, self, normalized_retcode,
-                                         results, **kwargs)
-                # If the handler returns True, don't pass to further handlers
-                if handler_result is True:
-                    return True
-                elif handler_result is not None:
+                handler_result = handler.handle_alert(request, self,
+                                                      normalized_retcode,
+                                                      results, **kwargs)
+                if handler_result is not None:
                     # If the handler returns a list of results, only apply
                     # successive handlers to that list
                     if len(handler_result) == 0:
-                        return True
+                        return []
                     results = handler_result
             except:
                 LOG.exception("Error running handler '%s'", handler.name)
-                return True
+                return []
 
-    def run_handlers(self, request, action, normalized_retcode, results,
-                     **kwargs):
+
+    def run_alert_handlers(self, request, action, normalized_retcode, results,
+                           **kwargs):
         """
-        Run a list of handlers on a check result
+        Run a list of handlers on a check result when raising or resolving an
+        alert
 
         Parameters
         ----------
         request : :class:`pyramid.request.Request`
-        action : str {'post', 'raise', 'resolve'}
+        action : str {'raise', 'resolve'}
             What action triggered these handlers
         normalized_retcode : int
             0, 1, or 2 denoting success, warning, or error
@@ -175,14 +181,55 @@ class Check(object):
         **kwargs : dict
             Other arguments to pass to handlers
 
+        Returns
+        -------
+        check_results : list
+            List of all the check results that made it through all the handlers
+
         """
         handlers = self._get_handlers(request, action, normalized_retcode,
                                      results, **kwargs)
 
         handlers = self._build_handlers(request, handlers)
 
-        return self._run_handler_list(request, normalized_retcode, results,
-                                      handlers, **kwargs)
+        return self._run_alert_handler_list(request, normalized_retcode,
+                                            results, handlers, **kwargs)
+
+
+    def _run_handler_list(self, request, result, handlers, **kwargs):
+        """ Run the handlers iteratively """
+        for handler in handlers:
+            try:
+                LOG.debug("Running handler '%s'", handler)
+                handler_result = handler.handle(request, self, result,
+                                                **kwargs)
+                if handler_result is True:
+                    return True
+            except:
+                LOG.exception("Error running handler '%s'", handler.name)
+                return True
+
+
+    def run_handler(self, request, result, **kwargs):
+        """
+        Run a list of handlers on a check result
+
+        Parameters
+        ----------
+        request : :class:`pyramid.request.Request`
+        result : :class:`~steward_palantir.models.CheckResult`
+        **kwargs : dict
+            Other arguments to pass to handlers
+
+        Returns
+        -------
+        halted : bool
+            If True, the result did not make it through all the handlers
+
+        """
+        handlers = self._build_handlers(request, self.handlers)
+
+        return self._run_handler_list(request, result, handlers, **kwargs)
 
 
     def __json__(self, request):

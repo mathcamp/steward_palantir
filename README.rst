@@ -214,12 +214,10 @@ reference is the built-in handlers in ``steward_palantir.handlers``.
 
 Any handlers you write must subclass ``steward_palantir.handlers.BaseHandler``.
 
-If a handler returns ``True``, the check will stop running handlers. Any successive
-handlers will not be run. This technique can be used, for example, to require
-multiple failed checks before raising an alert. Since handlers run on a list of
-check results, you may want to continue processessing only some of those
-results. If your handler returns a list of check results, successive handlers
-will only run on those results.
+Handlers may mutate check results and/or prevent successive handlers from being
+run. This technique can be used, for example, to require multiple failed checks
+before raising an alert. See the documentation on
+``steward_palantir.handlers.BaseHandler`` for details.
 
 Misc
 ====
@@ -232,4 +230,5 @@ minion or a check on a minion has two possible outcomes.
 1. If a check targets a minion using the 'glob', 'list', or 'pcre' expr_forms, it will never be run on the minion.
 2. If a check targets a minion with a different expr_form, the check will still run, but the handlers will not. Meaning no alerts will be raised.
 
-This is due to a limitation with salt (it does not expose the matching algorithms).
+This is due to a limitation with salt (it does not expose the minion matching
+algorithms).
