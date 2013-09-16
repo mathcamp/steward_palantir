@@ -2,7 +2,7 @@
 from .handlers import BaseHandler
 
 
-class TwilioHandler(BaseHandler):
+class TwilioHandler(BaseHandler): # pylint: disable=W0223
 
     """
     Check handler that sends SMS via twilio

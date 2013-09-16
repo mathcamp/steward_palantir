@@ -223,7 +223,8 @@ class AbsorbHandler(BaseHandler):
         if self.err_match and re.match(self.err_match, result.stderr):
             return True
         if self.out_err_match and (re.match(self.out_err_match, result.stdout)
-                                   or re.match(self.out_err_match, result.stderr)):
+                                   or re.match(self.out_err_match,
+                                               result.stderr)):
             return True
 
         if self.retcodes is not None and result.retcode in self.retcodes:
@@ -235,7 +236,7 @@ class AbsorbHandler(BaseHandler):
                 if self.handle(request, check, result, **kwargs) is not True]
 
 
-class MutateHandler(BaseHandler):
+class MutateHandler(BaseHandler): # pylint: disable=W0223
 
     """
     Check handler that can mutate check results conditionally
@@ -269,7 +270,7 @@ class MutateHandler(BaseHandler):
             result.retcode = 1
 
 
-class MailHandler(BaseHandler):
+class MailHandler(BaseHandler): # pylint: disable=W0223
 
     """
     Check handler that sends emails
