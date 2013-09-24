@@ -257,7 +257,8 @@ def list_minions(request):
         }
     minions['__global__'] = {
         'name': '__global__',
-        'enabled': True,
+        'enabled': not bool(request.db.query(MinionDisabled)
+                            .filter_by(name='__global__').first()),
     }
     return minions
 
