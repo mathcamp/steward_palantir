@@ -205,7 +205,7 @@ def toggle_check(request):
         if enabled:
             request.db.query(CheckDisabled).filter_by(name=check).delete()
         else:
-            request.db.add(CheckDisabled(check))
+            request.db.merge(CheckDisabled(check))
     return request.response
 
 
@@ -303,7 +303,7 @@ def toggle_minion(request):
         if enabled:
             request.db.query(MinionDisabled).filter_by(name=minion).delete()
         else:
-            request.db.add(MinionDisabled(minion))
+            request.db.merge(MinionDisabled(minion))
     return request.response
 
 
