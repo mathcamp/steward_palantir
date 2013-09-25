@@ -217,20 +217,27 @@ def list_alerts(request):
 
 
 @view_config(route_name='palantir_resolve_alert', permission='palantir_write')
-def resolve_alert(request):
+def resolve_alerts(request):
     """ Mark an alert as 'resolved' """
-    minion = request.param('minion')
-    check_name = request.param('check')
-    check = request.registry.palantir_checks[check_name]
-    result = request.db.query(CheckResult).filter_by(minion=minion,
-                                                     check=check_name).first()
-    if result is not None:
-        check.run_alert_handlers(request, 'resolve', 0, [result],
+    alerts = request.param('alerts', type=list)
+    alert_checks = defaultdict(list)
+    for alert in alerts:
+        alert_checks[alert['check']].append(alert['minion'])
+
+    for check_name, minions in alert_checks.iteritems():
+        check = request.registry.palantir_checks[check_name]
+        results = request.db.query(CheckResult).filter_by(check=check_name)\
+                .filter(CheckResult.minion.in_(minions)).all()
+        check.run_alert_handlers(request, 'resolve', 0, results,
                            marked_resolved=True)
-        result.alert = 0
-    request.db.query(Alert).filter_by(minion=minion, check=check_name).delete()
-    data = {'reason': 'Marked resolved by %s' %
-            unauthenticated_userid(request)}
+        for result in results:
+            result.alert = 0
+        request.db.query(Alert).filter_by(check=check_name)\
+                .filter(Alert.minion.in_(minions))\
+                .delete(synchronize_session=False)
+    data = {'reason': 'Marked resolved by %s' % unauthenticated_userid(request),
+            'alerts': alerts,
+            }
     request.subreq('pub', name='palantir/alert/resolved', data=data)
     return request.response
 

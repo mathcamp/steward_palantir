@@ -7,7 +7,7 @@ from steward.colors import green, red, yellow, magenta
 
 def _fuzzy_timedelta(td):
     """ Format a timedelta into a *loose* 'X time ago' string """
-    ago_str = lambda x, y:'%d %s%s ago' % (x, y, 's' if x > 1 else '')
+    ago_str = lambda x, y: '%d %s%s ago' % (x, y, 's' if x > 1 else '')
     if td.days > 0:
         return ago_str(td.days, 'day')
     hours = td.seconds / 3600
@@ -17,6 +17,7 @@ def _fuzzy_timedelta(td):
     if minutes > 0:
         return ago_str(minutes, 'minute')
     return ago_str(td.seconds, 'second')
+
 
 def _format_check_status(status):
     """ Turn a check status into a nicely-formatted string """
@@ -45,24 +46,25 @@ def _format_check_status(status):
                                             _fuzzy_timedelta(datetime.now() -
                                                              ran_at))
 
-
     if status.get('stdout'):
         string += "\nSTDOUT:\n%s" % status['stdout']
     if status.get('stderr'):
         string += "\nSTDERR:\n%s" % status['stderr']
     return string
 
+
 def do_alerts(client):
     """ Print all active alerts """
     response = client.cmd('palantir/alert/list').json()
     # Sort by minion, then by check name
-    response.sort(key=lambda x:x['check'])
-    response.sort(key=lambda x:x['minion'])
+    response.sort(key=lambda x: x['check'])
+    response.sort(key=lambda x: x['minion'])
     for alert in response:
         alert['name'] = alert['check']
         color = yellow if alert['retcode'] == 1 else red
         print "{} - {}".format(color(alert['minion']),
-                                   _format_check_status(alert))
+                               _format_check_status(alert))
+
 
 def do_checks(client, check=None):
     """
@@ -84,6 +86,7 @@ def do_checks(client, check=None):
     else:
         pprint(response[check])
 
+
 def do_minions(client):
     """ Print the list of minions """
     response = client.cmd('palantir/minion/list').json()
@@ -93,6 +96,7 @@ def do_minions(client):
             print minion['name']
         else:
             print minion['name'] + ' (disabled)'
+
 
 def do_status(client, minion, check=None):
     """
@@ -117,12 +121,13 @@ def do_status(client, minion, check=None):
             print _format_check_status(check)
     else:
         response = client.cmd('palantir/minion/check/get', minion=minion,
-                            check=check).json()
+                              check=check).json()
         if response is None:
             print "Check %s not found on %s" % (check, minion)
             return
         response['name'] = check
         print _format_check_status(response)
+
 
 def do_run_check(client, check):
     """
@@ -142,6 +147,7 @@ def do_run_check(client, check):
             result['name'] = check
             print '{}: {}'.format(green(minion), _format_check_status(result))
 
+
 def do_resolve(client, minion, check):
     """
     Mark an alert as resolved
@@ -154,7 +160,9 @@ def do_resolve(client, minion, check):
         Name of the check
 
     """
-    client.cmd('palantir/alert/resolve', minion=minion, check=check)
+    alert = {'minion': minion, 'check': check}
+    client.cmd('palantir/alert/resolve', alerts=[alert])
+
 
 def do_minion_enable(client, *minions):
     """
@@ -168,6 +176,7 @@ def do_minion_enable(client, *minions):
     """
     client.cmd('palantir/minion/toggle', minions=minions, enabled=True)
 
+
 def do_minion_disable(client, *minions):
     """
     Disable one or more minions
@@ -179,6 +188,7 @@ def do_minion_disable(client, *minions):
 
     """
     client.cmd('palantir/minion/toggle', minions=minions, enabled=False)
+
 
 def do_check_enable(client, *checks):
     """
@@ -192,6 +202,7 @@ def do_check_enable(client, *checks):
     """
     client.cmd('palantir/check/toggle', checks=checks, enabled=True)
 
+
 def do_check_disable(client, *checks):
     """
     Disable one or more checks
@@ -203,6 +214,7 @@ def do_check_disable(client, *checks):
 
     """
     client.cmd('palantir/check/toggle', checks=checks, enabled=False)
+
 
 def do_minion_check_enable(client, minion, *checks):
     """
@@ -218,6 +230,7 @@ def do_minion_check_enable(client, minion, *checks):
     """
     client.cmd('palantir/minion/check/toggle', minion=minion, checks=checks,
                enabled=True)
+
 
 def do_minion_check_disable(client, minion, *checks):
     """
