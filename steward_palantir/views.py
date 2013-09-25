@@ -218,6 +218,16 @@ def list_alerts(request):
     return request.db.query(Alert).all()
 
 
+@view_config(route_name='palantir_get_alert', renderer='json',
+             permission='palantir_read')
+def get_alert(request):
+    """ List all current alerts """
+    minion = request.param('minion')
+    check = request.param('check')
+    return request.db.query(Alert)\
+            .filter_by(check=check, minion=minion).first()
+
+
 @view_config(route_name='palantir_resolve_alert', permission='palantir_write')
 def resolve_alerts(request):
     """ Mark an alert as 'resolved' """

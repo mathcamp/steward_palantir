@@ -193,6 +193,7 @@ def includeme(config):
     config.add_route('palantir_toggle_check', '/palantir/check/toggle')
 
     config.add_route('palantir_list_alerts', '/palantir/alert/list')
+    config.add_route('palantir_get_alert', '/palantir/alert/get')
     config.add_route('palantir_resolve_alert', '/palantir/alert/resolve')
 
     config.add_route('palantir_list_minions', '/palantir/minion/list')
