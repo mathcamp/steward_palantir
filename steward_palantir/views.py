@@ -1,4 +1,5 @@
 """ Endpoints for Palantir """
+import copy
 import itertools
 import logging
 from collections import defaultdict
@@ -95,6 +96,7 @@ def run_check(request):
             check_result = CheckResult(minion, check.name)
             request.db.add(check_result)
         else:
+            check_result.old_result = copy.copy(check_result)
             if check_result.retcode == result['retcode']:
                 check_result.count += 1
             else:

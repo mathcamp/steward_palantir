@@ -20,11 +20,11 @@ badcheck:
 
   handlers:
     # create an alert if the check fails twice in a row
+    - mutate:
+        promote_after: 5
     - absorb:
         count: 2
         success: false
-    - mutate:
-        promote_after: 10
 
   raised:
     - log:

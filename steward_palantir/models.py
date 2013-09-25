@@ -1,6 +1,6 @@
 """ SQLAlchemy models """
-from collections import defaultdict
 from datetime import datetime
+
 from sqlalchemy import Column, Integer, DateTime, UnicodeText, Boolean
 
 from steward_sqlalchemy import declarative_base
@@ -134,6 +134,9 @@ class CheckResult(Base):
     alert : int
         Alert status (0 - success, 1 - warning, 2 - error)
     enabled : bool
+    old_result : int
+        The previous result. This field is not persisted. It exists temporarily
+        for the handlers.
 
     """
     __tablename__ = 'palantir_check_results'
@@ -154,6 +157,8 @@ class CheckResult(Base):
         self.count = 1
         self.enabled = True
         self.alert = 0
+        self.retcode = 0
+        self.old_result = None
 
     def __json__(self, request):
         return {
