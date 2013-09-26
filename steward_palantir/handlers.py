@@ -253,12 +253,16 @@ class MutateHandler(BaseHandler): # pylint: disable=W0223
     promote_after : int, optional
         If the check has returned a warning (status 1) this many times, promote
         it to an error.
+    demote_until : int, optional
+        If the check has returned an error (status 2+) fewer than this many
+        times, demote it to a warning.
 
     """
     name = 'mutate'
 
-    def __init__(self, promote_after=None):
+    def __init__(self, promote_after=None, demote_until=None):
         self.promote_after = promote_after
+        self.demote_until = demote_until
 
     def handle(self, request, check, result, **kwargs):
 
@@ -269,6 +273,12 @@ class MutateHandler(BaseHandler): # pylint: disable=W0223
                   result.old_result.count >= self.promote_after):
                 result.retcode = 2
                 result.count = result.old_result.count + 1
+
+        if self.demote_until is not None and result.normalized_retcode == 2:
+            if result.old_result.normalized_retcode == 1:
+                result.count = result.old_result.count + 1
+            if result.count <= self.demote_until:
+                result.retcode = 1
 
 
 class MailHandler(BaseHandler): # pylint: disable=W0223
