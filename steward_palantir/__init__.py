@@ -203,6 +203,8 @@ def includeme(config):
 
     config.add_route('palantir_toggle_minion_check',
                      '/palantir/minion/check/toggle')
+    config.add_route('palantir_list_minion_checks',
+                     '/palantir/minion/check/list')
     config.add_route('palantir_get_minion_check', '/palantir/minion/check/get')
 
     config.add_route('palantir_list_handlers', '/palantir/handler/list')

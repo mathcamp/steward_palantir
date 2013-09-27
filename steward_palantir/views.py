@@ -352,6 +352,17 @@ def toggle_minion_check(request):
     return request.response
 
 
+@view_config(route_name='palantir_list_minion_checks', renderer='json',
+             permission='palantir_read')
+def list_minion_checks(request):
+    """ List all salt minions and their associated checks """
+    minions = defaultdict(list)
+    results = request.db.query(CheckResult).all()
+    for result in results:
+        minions[result.minion].append(result)
+    return dict(minions)
+
+
 @view_config(route_name='palantir_prune', renderer='json',
              permission='palantir_write')
 def prune_data(request):
