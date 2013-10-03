@@ -70,9 +70,8 @@ class Check(object):
         specified.
     schedule : dict
         Keyword arguments to the :class:`datetime.timedelta` constructor
-    target : str, optional
-        The salt target string. If not present, will only be run on the
-        palantir server.
+    target : str
+        The salt target string.
     expr_form : str, optional
         The type of target matching to use for salt (default 'glob')
     timeout : int, optional
@@ -89,7 +88,7 @@ class Check(object):
         Dictionary of arbitrary metadata for the check
 
     """
-    def __init__(self, name, command, schedule, target=None, expr_form=None,
+    def __init__(self, name, command, schedule, target, expr_form=None,
                  timeout=None, handlers=(), raised=(), resolved=(), meta=None):
         self.name = unicode(name)
         self.target = target

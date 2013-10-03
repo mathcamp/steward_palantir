@@ -43,33 +43,27 @@ def run_check(request):
             return False
         return True
 
-    if check.target is None:
-        response = request.subreq('salt_call', cmd='cmd.run_all',
-                                  kwarg=check.command)
-        expected_minions = None
-        response = {'__global__': response}
+    expected_minions = request.subreq('salt_match', tgt=check.target,
+                                        expr_form=check.expr_form)
+    if expected_minions is None:
+        target = check.target
+        expr_form = check.expr_form
     else:
-        expected_minions = request.subreq('salt_match', tgt=check.target,
-                                          expr_form=check.expr_form)
-        if expected_minions is None:
-            target = check.target
-            expr_form = check.expr_form
-        else:
-            i = 0
-            while i < len(expected_minions):
-                minion = expected_minions[i]
-                if not do_minion_check(minion, check_name):
-                    del expected_minions[i]
-                    continue
-                i += 1
-            target = ','.join(expected_minions)
-            expr_form = 'list'
-            if len(expected_minions) == 0:
-                return 'No minions matched'
+        i = 0
+        while i < len(expected_minions):
+            minion = expected_minions[i]
+            if not do_minion_check(minion, check_name):
+                del expected_minions[i]
+                continue
+            i += 1
+        target = ','.join(expected_minions)
+        expr_form = 'list'
+        if len(expected_minions) == 0:
+            return 'No minions matched'
 
-        response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
-                                  kwarg=check.command, expr_form=expr_form,
-                                  timeout=check.timeout)
+    response = request.subreq('salt', tgt=target, cmd='cmd.run_all',
+                                kwarg=check.command, expr_form=expr_form,
+                                timeout=check.timeout)
 
     if expected_minions is None:
         expected_minions = response.keys()
@@ -274,11 +268,6 @@ def list_minions(request):
             'enabled': not bool(request.db.query(MinionDisabled)
                                 .filter_by(name=name).first()),
         }
-    minions['__global__'] = {
-        'name': '__global__',
-        'enabled': not bool(request.db.query(MinionDisabled)
-                            .filter_by(name='__global__').first()),
-    }
     return minions
 
 

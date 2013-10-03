@@ -89,9 +89,7 @@ to make about your system. Here is an annotated example of a complete check::
     # The name of a check
     mycheck:
 
-      # The salt target to run the check on. If absent, will run this command
-      # *only* on the server running steward. This will show up under the
-      # minion '__global__'
+      # The salt target to run the check on.
       target: "*"
 
       # The type of matching to do for salt (default 'glob')
