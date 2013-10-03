@@ -365,6 +365,9 @@ def prune_data(request):
     request.db.query(CheckResult)\
         .filter(CheckResult.check.notin_(check_names))\
         .delete(synchronize_session=False)
+    request.db.query(Alert)\
+        .filter(Alert.check.notin_(check_names))\
+        .delete(synchronize_session=False)
 
     minion_list = request.subreq('palantir_list_minions').keys()
     minions = set(minion_list)
