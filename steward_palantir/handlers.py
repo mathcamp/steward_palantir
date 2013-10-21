@@ -41,7 +41,7 @@ class RangeSpec(object):
                         return True
 
     def __repr__(self):
-        return "Range(%s)" % self.spec
+        return "RangeSpec(%s)" % self.spec
 
     def __str__(self):
         return self.spec
@@ -160,12 +160,12 @@ class AbsorbHandler(BaseHandler):
     Parameters
     ----------
     success : bool, optional
-        If True, absorb successes. If False, *never* absorb successes. (default
+        If True, absorb successes. If False, absorb non-successes. (default
         None)
     warn : bool, optional
-        If True, absorb warnings. If False, *never* absorb warnings. (default None)
+        If True, absorb warnings. If False, absorb non-warnings. (default None)
     error : bool, optional
-        If True, absorb errors. If False, *never* absorb errors. (default None)
+        If True, absorb errors. If False, absorb non-errors. (default None)
     count : int, optional
         Absorb checks unless the check has returned that result this many times
         (default 1)
@@ -173,7 +173,7 @@ class AbsorbHandler(BaseHandler):
         If provided, absorb any check whose stdout matches this regex
     err_match : str, optional
         If provided, absorb any check whose stderr matches this regex
-    out_err_match : str, optional
+    any_match : str, optional
         If provided, absorb any check whose stdout or stderr matches this regex
     retcodes : str, optional
         Absorb checks whose return codes fall into this set. This should match
@@ -181,54 +181,77 @@ class AbsorbHandler(BaseHandler):
 
     Notes
     -----
-    Here is an example. This will ignore all warnings from the check and only
-    pass through errors/successes if the check fails/succeeds 3 times in a row.
+    The parameters to a single absorb will be "and"-ed together. "Or" logic can
+    be constructed by using multiple absorb handlers.  For example, this will
+    ignore all warnings from the check and only pass through errors/successes
+    if the check fails/succeeds 3 times in a row.
 
         ..code-block:: yaml
 
             handlers:
               - absorb:
                   count: 3
+              - absorb:
                   warn: true
-              - log:
+
+    This example will ignore errors with a return code of 10 that contain
+    "KeyError" in the output.
+
+        ..code-block:: yaml
+
+            handlers:
+              - absorb:
+                  any_match: KeyError
+                  retcodes: 10
 
     """
     name = 'absorb'
 
     def __init__(self, success=None, warn=None, error=None,
                  count=1, out_match=None,
-                 err_match=None, out_err_match=None, retcodes=''):
+                 err_match=None, any_match=None, retcodes=''):
         self.success = success
         self.warn = warn
         self.error = error
         self.count = count
         self.out_match = out_match
         self.err_match = err_match
-        self.out_err_match = out_err_match
+        self.any_match = any_match
         self.retcodes = RangeSpec(retcodes)
 
     def handle(self, request, check, result, **kwargs):
-        if self.success is not None and result.normalized_retcode == 0:
-            return self.success
-        if self.warn is not None and result.normalized_retcode == 1:
-            return self.warn
-        if self.error is not None and result.normalized_retcode == 2:
-            return self.error
+        if self.success is not None:
+            if self.success and result.normalized_retcode != 0:
+                return False
+            elif not self.success and result.normalized_retcode == 0:
+                return False
+        if self.warn is not None:
+            if self.warn and result.normalized_retcode != 1:
+                return False
+            elif not self.warn and result.normalized_retcode == 1:
+                return False
+        if self.error is not None:
+            if self.error and result.normalized_retcode != 2:
+                return False
+            elif not self.error and result.normalized_retcode == 2:
+                return False
 
-        if self.count > 1 and result.count < self.count:
-            return True
+        if self.count > 1 and result.count >= self.count:
+            return False
 
-        if self.out_match and re.match(self.out_match, result.stdout):
-            return True
-        if self.err_match and re.match(self.err_match, result.stderr):
-            return True
-        if self.out_err_match and (re.match(self.out_err_match, result.stdout)
-                                   or re.match(self.out_err_match,
-                                               result.stderr)):
-            return True
+        if self.out_match and not re.match(self.out_match, result.stdout):
+            return False
+        if self.err_match and not re.match(self.err_match, result.stderr):
+            return False
+        if self.any_match and not \
+        (re.match(self.any_match, result.stdout) or
+         re.match(self.any_match, result.stderr)):
+            return False
 
-        if self.retcodes is not None and result.retcode in self.retcodes:
-            return True
+        if self.retcodes is not None and result.retcode not in self.retcodes:
+            return False
+
+        return True
 
     def handle_alert(self, request, check, normalized_retcode, results,
                      **kwargs):
