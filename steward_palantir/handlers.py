@@ -209,7 +209,7 @@ class AbsorbHandler(BaseHandler):
 
     def __init__(self, success=None, warn=None, error=None,
                  count=1, out_match=None,
-                 err_match=None, any_match=None, retcodes=''):
+                 err_match=None, any_match=None, retcodes=None):
         self.success = success
         self.warn = warn
         self.error = error
@@ -217,7 +217,10 @@ class AbsorbHandler(BaseHandler):
         self.out_match = out_match
         self.err_match = err_match
         self.any_match = any_match
-        self.retcodes = RangeSpec(retcodes)
+        if retcodes is not None:
+            self.retcodes = RangeSpec(retcodes)
+        else:
+            self.retcodes = None
 
     def handle(self, request, check, result, **kwargs):
         if self.success is not None:
