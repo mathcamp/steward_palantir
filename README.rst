@@ -21,6 +21,27 @@ or in the config.ini file::
 
 Make sure you include it in the client config file as well.
 
+Web Interface
+=============
+
+There is also a web interface for Palantir, which relies on ``steward_web``. To
+use the web interface, add more includes::
+
+    config.include('steward_web')
+    config.include('steward_palantir.web')
+
+or::
+
+    pyramid.includes =
+        steward_web
+        steward_palantir.web
+
+And make sure you include the jinja templates in your config file::
+
+    jinja2.directories =
+        steward_web:templates
+        steward_palantir.web:templates
+
 Quick Start
 ===========
 First thing you need to do is add a check to the checks directory

@@ -1,0 +1,57 @@
+<div>
+  <div class="modal-header">
+    <button type="button" class="close" ng-click="close()" aria-hidden="true">&times;</button>
+    <h3>{{detailCheck.check}}</h3>
+  </div>
+  <div class="modal-body">
+    <ul class="unstyled">
+      <li ng-repeat="(key, val) in detailCheck.meta">
+        <strong>{{ key }}</strong>: {{ val }}
+      </li>
+    </ul>
+
+    <tabset>
+      <tab heading="Check">
+        <ul class="unstyled" style="margin-bottom: 10px">
+          <li>
+            <strong>Exit code</strong>: {{ detailCheck.retcode }}
+            ({{ detailCheck.count }} time{{ detailCheck.count == 1 ? '' : 's' }})
+          </li>
+          <li>
+            <strong>Last run</strong>: <abbr title="{{ detailCheck.last_run * 1000 | formatDate }}">
+            {{ detailCheck.last_run * 1000 | fromNow }}</abbr>
+          </li>
+        </ul>
+        <div class="well">
+          {{ detailCheck.stdout }}
+        </div>
+        <div ng-if="detailCheck.stderr">
+          <h4>STDERR</h4>
+          <div class="well">
+            {{ detailCheck.stderr }}
+          </div>
+        </div>
+      </tab>
+      <tab heading="Alert" active="showDetailAlert" disabled="!detailAlert">
+        <ul class="unstyled" style="margin-bottom: 10px">
+          <li>
+            <strong>Exit code</strong>: {{ detailAlert.retcode }}
+          </li>
+          <li>
+            <strong>Created</strong>: <abbr title="{{ detailAlert.created * 1000 | formatDate }}">
+            {{ detailAlert.created * 1000 | fromNow }}</abbr>
+          </li>
+        </ul>
+        <div class="well">
+          {{ detailAlert.stdout }}
+        </div>
+        <div ng-if="detailAlert.stderr">
+          <h4>STDERR</h4>
+          <div class="well">
+            {{ detailAlert.stderr }}
+          </div>
+        </div>
+      </tab>
+    </tabset>
+  </div>
+</div>

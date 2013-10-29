@@ -1,0 +1,38 @@
+<div class="row">
+  <div class="span2">
+    <input ng-model="search.name" class="search-query" style="width: 100%" placeholder="Search" type="text" />
+  </div>
+  <div class="span9 offset1" ng-if="_.size(getSelectedMinions()) > 0">
+    <button class="btn" ng-class="allEnabled() ? 'btn-warning' : 'btn-success'" ng-click="toggleAll()">{{ allEnabled() ? 'Disable' : 'Enable' }}</button>
+  </div>
+</div>
+<div class="row">
+  <div class="span12" ng-if="minions !== null">
+    <table class="table table-striped clickable">
+      <thead>
+        <tr>
+          <th style="width: 10px">
+            <input type="checkbox" ng-model="allSelected" ng-change="toggleSelectAll(allSelected)">
+          </th>
+          <th>Minion</th>
+          <th>Checks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="minion in minions | filter:search" ng-click="toggleSelected(minion, $event)">
+          <td>
+            <input type="checkbox" ng-model="minion.selected">
+          </td>
+          <td><a href="#/minion/{{ minion.name }}" ng-class="minion.enabled ? '' : 'muted'">{{ minion.name }}{{ minion.enabled ? '' : ' (disabled)' }}</a></td>
+          <td>
+            <span ng-if="checks[minion.name]">
+              <span ng-repeat="result in checks[minion.name]">
+                <a href="#/check/{{ result.check }}" ng-class="result.enabled && minion.enabled ? '' : 'muted'">{{ result.check }}</a>{{ $last ? '' : ',' }}
+              </span>
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

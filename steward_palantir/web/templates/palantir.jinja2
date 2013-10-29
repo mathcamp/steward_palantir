@@ -1,0 +1,40 @@
+{% extends "base.jinja2" %}
+
+{% block ng_app %}palantir{% endblock %}
+{% block title %}Palantir{% endblock %}
+{% block subtitle %}
+  <a class="brand" href="#">Palantir</a>
+{% endblock %}
+{% block css %}
+<style type="text/css">
+table.clickable tbody tr:hover td {
+  background-color: #d9edf7;
+  cursor: pointer;
+}
+
+.nav-tabs a:hover {
+  cursor: pointer;
+}
+</style>
+{% endblock %}
+{% block nav_top %}
+<li ng-class="location.path == '/alerts' ? 'active' : ''"><a href="#/alerts">Alerts</a><li>
+<li ng-class="location.path == '/minions' ? 'active' : ''"><a href="#/minions">Minions</a><li>
+<li ng-class="location.path == '/checks' ? 'active' : ''"><a href="#/checks">Checks</a><li>
+{% endblock %}
+
+{% block content %}
+<div ng-controller="BaseController">
+  <div ng-view></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src='//cdnjs.cloudflare.com/ajax/libs/moment.js/2.1.0/moment.min.js'></script>
+<script src='{{ "steward_palantir.web:static/js/truncate.js" | static_url }}'></script>
+<script src='{{ "steward_palantir.web:static/js/palantir.js" | static_url }}'></script>
+<script type='text/javascript'>
+var STATIC = {{ "steward_palantir.web:static/" | static_url | tojson | safe }};
+var ROUTE = {{ request.route_map('palantir.*') | tojson | safe }};
+</script>
+{% endblock %}

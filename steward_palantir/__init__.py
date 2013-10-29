@@ -210,4 +210,4 @@ def includeme(config):
     config.add_route('palantir_list_handlers', '/palantir/handler/list')
     config.add_route('palantir_prune', '/palantir/prune')
 
-    config.scan()
+    config.scan(__package__ + '.views')

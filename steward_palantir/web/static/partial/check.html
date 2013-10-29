@@ -1,0 +1,50 @@
+<div class="row">
+  <div class="span12 text-center">
+    <h2 class="text-center">{{ check.name }}</h2>
+    <a href="" class="btn" ng-class="check.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggleCheck()">{{ check.enabled ? 'Disable' : 'Enable' }}</a>
+  </div>
+</div>
+<div class="row">
+  <div class="span12">
+    <ul class="unstyled">
+      <li>
+        <strong>Command</strong>: {{ check.command.cmd }}
+      </li>
+      <li>
+        <strong>Target</strong>: {{ check.target }}
+          <span ng-if="check.expr_form !== 'glob'">({{ check.expr_form }})</span>
+      </li>
+      <li>
+        <strong>Schedule</strong>: {{ check.schedule }}
+      </li>
+      <li>
+        <strong>Timeout</strong>: {{ check.timeout }}
+      </li>
+      <li ng-repeat="(key, val) in check.meta">
+        <strong>{{ key }}</strong>: {{ val }}
+      </li>
+    </ul>
+  </div>
+</div>
+<div class="row">
+  <div class="span12">
+    <table class="table clickable">
+      <thead>
+        <tr>
+          <th>Minion</th>
+          <th>Output</th>
+          <th>Last Run</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="result in check.results" ng-class="status(result.retcode)" ng-click="showDetail(result, $event)">
+          <td><a href="#/minion/{{ result.minion }}">{{ result.minion }}</a></td>
+          <td>{{ result.stdout | characters:50 :true }}</td>
+          <td>{{ 1000*result.last_run | fromNow }}</td>
+          <td><a href="" class="btn" ng-class="result.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggle($index)">{{ result.enabled ? 'Disable' : 'Enable' }}</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

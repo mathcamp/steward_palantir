@@ -1,0 +1,45 @@
+<div class="row">
+  <div class="span12" ng-if="alerts !== null">
+    <div ng-switch on="alerts.length">
+      <div ng-switch-when="0" class="text-center">
+        <h1>NO ALERTS</h1>
+        <img ng-src="{{ STATIC }}img/highfive.jpg" />
+        <img ng-src="{{ STATIC }}img/awwyeah.jpg" />
+      </div>
+      <div ng-switch-default>
+        <div class="row">
+          <div class="span2">
+            <input ng-model="search" class="search-query" style="width: 100%" placeholder="Search" type="text" />
+          </div>
+          <div class="span9 offset1" ng-if="_.size(getSelectedAlerts()) > 0">
+            <button class="btn btn-success" ng-click="resolveAll()">Resolve</button>
+          </div>
+        </div>
+        <table class="table clickable">
+          <thead>
+            <tr>
+              <th style="width: 10px">
+                <input type="checkbox" ng-model="allSelected" ng-change="toggleSelectAll(allSelected)">
+              </th>
+              <th>Minion</th>
+              <th>Check</th>
+              <th>Output</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="alert in alerts | filter:search" ng-class="alert.retcode == 1 ? 'warning' : 'error'" ng-click="showDetail(alert, $event)">
+              <td>
+                <input type="checkbox" ng-model="alert.selected">
+              </td>
+              <td><a href="#/minion/{{ alert.minion }}">{{ alert.minion }}</a></td>
+              <td><a href="#/check/{{ alert.check }}">{{ alert.check }}</a></td>
+              <td>{{ alert.stdout | characters:40 :true }}</td>
+              <td>{{ 1000*alert.created | fromNow }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

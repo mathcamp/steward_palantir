@@ -1,0 +1,28 @@
+<div class="row">
+  <div class="span12 text-center">
+    <h2 class="text-center">{{ minion.name }}</h2>
+    <a href="" class="btn" ng-class="minion.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggleMinion()">{{ minion.enabled ? 'Disable' : 'Enable' }}</a>
+  </div>
+</div>
+<div class="row">
+  <div class="span12">
+    <table class="table clickable">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Output</th>
+          <th>Last Run</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="check in minion.checks" ng-class="status(check.retcode)" ng-click="showDetail(check, $event)">
+          <td><a href="#/check/{{ check.check }}">{{ check.check }}</a></td>
+          <td>{{ check.stdout | characters:50 :true }}</td>
+          <td>{{ 1000*check.last_run | fromNow }}</td>
+          <td><a href="" class="btn" ng-class="check.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggle($index)">{{ check.enabled ? 'Disable' : 'Enable' }}</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
