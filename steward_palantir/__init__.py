@@ -194,7 +194,11 @@ def include_tasks(config):
         'task': 'steward_palantir.tasks.prune',
     })
     config.registry.palantir_checks = load_checks(config.settings)
-    config.registry.palantir_handlers = load_handlers(config.settings)
+
+    def post_setup_load_handlers():
+        """ Load handlers as a callback """
+        config.registry.palantir_handlers = load_handlers(config.settings)
+    config.after_setup.append(post_setup_load_handlers)
 
 
 def includeme(config):
