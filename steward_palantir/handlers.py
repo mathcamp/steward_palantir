@@ -1,6 +1,7 @@
 """ Check result handlers """
-import logging
 import re
+
+import logging
 
 
 LOG = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class BaseHandler(object):
     """ Base class for check handlers """
     name = None
 
-    def handle(self, request, check, result, **kwargs):
+    def handle(self, task, check, result, **kwargs):
         """
         The is called to handle the result of a check every time the check is
         run
@@ -62,7 +63,8 @@ class BaseHandler(object):
 
         Parameters
         ----------
-        request : :class:`pyramid.request.Request`
+        task : object
+            The current Celery task
         check : :class:`steward_palantir.check.Check`
         result : :class:`steward_palantir.models.CheckResult`
         **kwargs : dict
@@ -77,7 +79,7 @@ class BaseHandler(object):
         """
         raise NotImplementedError
 
-    def handle_alert(self, request, check, normalized_retcode, results,
+    def handle_alert(self, task, check, normalized_retcode, results,
                      **kwargs):
         """
         This is called while raising or resolving an alert
@@ -89,7 +91,8 @@ class BaseHandler(object):
 
         Parameters
         ----------
-        request : :class:`pyramid.request.Request`
+        task : object
+            The current Celery task
         check : :class:`steward_palantir.check.Check`
         normalized_retcode : int
             0, 1, or 2 to denote success, warning, or error
@@ -108,7 +111,7 @@ class BaseHandler(object):
         """
         raise NotImplementedError
 
-    def __json__(self, request):
+    def __json__(self, request=None):
         return "Handler(%s)" % self.name
 
 
@@ -128,11 +131,11 @@ class LogHandler(BaseHandler):
     def __init__(self, message=None):
         self.message = message
 
-    def handle(self, request, check, result, **kwargs):
-        self.handle_alert(request, check, result.normalized_retcode, [result],
-                **kwargs)
+    def handle(self, task, check, result, **kwargs):
+        self.handle_alert(task, check, result.normalized_retcode, [result],
+                          **kwargs)
 
-    def handle_alert(self, request, check, normalized_retcode, results,
+    def handle_alert(self, task, check, normalized_retcode, results,
                      **kwargs):
         if normalized_retcode == 0:
             fxn = LOG.info
@@ -222,7 +225,7 @@ class AbsorbHandler(BaseHandler):
         else:
             self.retcodes = None
 
-    def handle(self, request, check, result, **kwargs):
+    def handle(self, task, check, result, **kwargs):
         if self.success is not None:
             if self.success and result.normalized_retcode != 0:
                 return False
@@ -247,8 +250,8 @@ class AbsorbHandler(BaseHandler):
         if self.err_match and not re.match(self.err_match, result.stderr):
             return False
         if self.any_match and not \
-        (re.match(self.any_match, result.stdout) or
-         re.match(self.any_match, result.stderr)):
+            (re.match(self.any_match, result.stdout) or
+             re.match(self.any_match, result.stderr)):
             return False
 
         if self.retcodes is not None and result.retcode not in self.retcodes:
@@ -256,13 +259,13 @@ class AbsorbHandler(BaseHandler):
 
         return True
 
-    def handle_alert(self, request, check, normalized_retcode, results,
+    def handle_alert(self, task, check, normalized_retcode, results,
                      **kwargs):
         return [result for result in results
-                if self.handle(request, check, result, **kwargs) is not True]
+                if self.handle(task, check, result, **kwargs) is not True]
 
 
-class MutateHandler(BaseHandler): # pylint: disable=W0223
+class MutateHandler(BaseHandler):  # pylint: disable=W0223
 
     """
     Check handler that can mutate check results conditionally
@@ -290,7 +293,7 @@ class MutateHandler(BaseHandler): # pylint: disable=W0223
         self.promote_after = promote_after
         self.demote_until = demote_until
 
-    def handle(self, request, check, result, **kwargs):
+    def handle(self, task, check, result, **kwargs):
 
         if self.promote_after is not None and result.normalized_retcode == 1:
             if result.count >= self.promote_after:
@@ -307,7 +310,7 @@ class MutateHandler(BaseHandler): # pylint: disable=W0223
                 result.retcode = 1
 
 
-class MailHandler(BaseHandler): # pylint: disable=W0223
+class MailHandler(BaseHandler):  # pylint: disable=W0223
 
     """
     Check handler that sends emails
@@ -339,6 +342,7 @@ class MailHandler(BaseHandler): # pylint: disable=W0223
     def __init__(self, **kwargs):
         self.kwargs = kwargs
 
-    def handle_alert(self, request, check, normalized_retcode, results,
+    def handle_alert(self, task, check, normalized_retcode, results,
                      **kwargs):
-        request.subreq('mail', **self.kwargs)
+        from steward_smtp.tasks import mail
+        mail(**self.kwargs)

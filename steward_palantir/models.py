@@ -98,7 +98,7 @@ class Alert(Base):
         return cls(result.minion, result.check, result.stdout, result.stderr,
                    result.retcode)
 
-    def __json__(self, request):
+    def __json__(self, request=None):
         return {
             'minion': self.minion,
             'check': self.check,
@@ -160,7 +160,7 @@ class CheckResult(Base):
         self.retcode = 0
         self.old_result = None
 
-    def __json__(self, request):
+    def __json__(self, request=None):
         return {
             'minion': self.minion,
             'check': self.check,

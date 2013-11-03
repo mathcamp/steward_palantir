@@ -1,18 +1,18 @@
 """ Steward extension for monitoring servers """
 from __future__ import unicode_literals
 
-import functools
 import imp
-import inspect
-import logging
 import os
 import sys
+from datetime import timedelta
 
+import inspect
+import logging
 import yaml
 from pyramid.path import DottedNameResolver
 from pyramid.settings import aslist
 
-from .check import Check, CheckRunner
+from .check import Check
 from .handlers import BaseHandler
 
 
@@ -60,7 +60,7 @@ def load_python_checks(filepath):
             yield member()
 
 
-def load_handlers(filepath):
+def load_handlers_from_path(filepath):
     """ Load check handlers from a file path """
     module_name, _ = os.path.splitext(os.path.basename(filepath))
     module_path = os.path.dirname(filepath)
@@ -127,14 +127,72 @@ def prune(tasklist):
                     response.text)
 
 
-def include_tasks(config, tasklist):
-    """ Add tasks """
-    checks_dir = config.get('palantir.checks_dir', '/etc/steward/checks')
+def load_checks(settings):
+    checks = {}
+    checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
+    required_meta = set(aslist(settings.get('palantir.required_meta', [])))
     for check in iterate_files(checks_dir, DEFAULT_LOADERS):
-        runner = CheckRunner.from_check(tasklist, check)
-        tasklist.add(runner, runner.schedule_fxn)
+        if check.name in checks:
+            raise ValueError("Duplicate Palantir check '%s'" % check.name)
+        missing_meta = required_meta - set(check.meta.keys())
+        if missing_meta:
+            raise ValueError("Check '%s' is missing meta field(s) '%s'" %
+                             (check.name, ', '.join(missing_meta)))
+        checks[check.name] = check
+    return checks
 
-    tasklist.add(functools.partial(prune, tasklist), '*/15 * * * *')
+
+def load_handlers(settings):
+    handlers = {}
+    name_resolver = DottedNameResolver(__package__)
+    handler_files = aslist(settings.get('palantir.handlers',
+                                        ['/etc/steward/handlers']))
+    handler_files.append('steward_palantir.handlers')
+    for mod_name in handler_files:
+        # If a file or directory, import and load the handlers
+        if os.path.exists(mod_name):
+            loaders = {
+                '.py': load_handlers_from_path,
+            }
+            if os.path.isdir(mod_name):
+                for handler in iterate_files(mod_name, loaders):
+                    handlers[handler.name] = handler
+            else:
+                for handler in load_handlers_from_path(mod_name):
+                    handlers[handler.name] = handler
+            continue
+
+        module = name_resolver.resolve(mod_name.strip())
+        # If a reference to a handler directly, add it
+        if inspect.isclass(module) and issubclass(module, BaseHandler):
+            handlers[module.name] = module
+            continue
+
+        # Otherwise, import the module and search for handlers
+        for _, member in inspect.getmembers(module, inspect.isclass):
+            if issubclass(member, BaseHandler) and member != BaseHandler:
+                handlers[member.name] = member
+
+    return handlers
+
+
+def include_tasks(config):
+    """ Add tasks """
+    checks_dir = config.settings.get('palantir.checks_dir',
+                                     '/etc/steward/checks')
+    for check in iterate_files(checks_dir, DEFAULT_LOADERS):
+        config.add_scheduled_task(check.name, {
+            'schedule': timedelta(**check.schedule),
+            'task': 'steward_palantir.tasks.run_check',
+            'args': [check.name],
+        })
+
+    config.add_scheduled_task('palantir_prune', {
+        'schedule': timedelta(minutes=10),
+        'task': 'steward_palantir.tasks.prune',
+    })
+    config.registry.palantir_checks = load_checks(config.settings)
+    config.registry.palantir_handlers = load_handlers(config.settings)
 
 
 def includeme(config):
@@ -143,48 +201,10 @@ def includeme(config):
     config.add_acl_from_settings('palantir')
 
     # Add the handlers
-    name_resolver = DottedNameResolver(__package__)
-    config.registry.palantir_handlers = {}
-    handler_files = aslist(settings.get('palantir.handlers',
-                                        ['/etc/steward/handlers']))
-    handler_files.append('steward_palantir.handlers')
-    for mod_name in handler_files:
-        # If a file or directory, import and load the handlers
-        if os.path.exists(mod_name):
-            loaders = {
-                '.py': load_handlers,
-            }
-            if os.path.isdir(mod_name):
-                for handler in iterate_files(mod_name, loaders):
-                    config.registry.palantir_handlers[handler.name] = handler
-            else:
-                for handler in load_handlers(mod_name):
-                    config.registry.palantir_handlers[handler.name] = handler
-            continue
-
-        module = name_resolver.resolve(mod_name.strip())
-        # If a reference to a handler directly, add it
-        if inspect.isclass(module) and issubclass(module, BaseHandler):
-            config.registry.palantir_handlers[module.name] = module
-            continue
-
-        # Otherwise, import the module and search for handlers
-        for _, member in inspect.getmembers(module, inspect.isclass):
-            if issubclass(member, BaseHandler) and member != BaseHandler:
-                config.registry.palantir_handlers[member.name] = member
+    config.registry.palantir_handlers = load_handlers(settings)
 
     # Load the checks
-    config.registry.palantir_checks = {}
-    checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
-    required_meta = set(aslist(settings.get('palantir.required_meta', [])))
-    for check in iterate_files(checks_dir, DEFAULT_LOADERS):
-        if check.name in config.registry.palantir_checks:
-            raise ValueError("Duplicate Palantir check '%s'" % check.name)
-        missing_meta = required_meta - set(check.meta.keys())
-        if missing_meta:
-            raise ValueError("Check '%s' is missing meta field(s) '%s'" %
-                             (check.name, ', '.join(missing_meta)))
-        config.registry.palantir_checks[check.name] = check
+    config.registry.palantir_checks = load_checks(settings)
 
     # Set up the route urls
     config.add_route('palantir_list_checks', '/palantir/check/list')
