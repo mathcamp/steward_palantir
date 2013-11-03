@@ -128,6 +128,7 @@ def prune(tasklist):
 
 
 def load_checks(settings):
+    """ Load all palantir checks """
     checks = {}
     checks_dir = settings.get('palantir.checks_dir', '/etc/steward/checks')
     required_meta = set(aslist(settings.get('palantir.required_meta', [])))
@@ -143,6 +144,7 @@ def load_checks(settings):
 
 
 def load_handlers(settings):
+    """ Load all additional handlers """
     handlers = {}
     name_resolver = DottedNameResolver(__package__)
     handler_files = aslist(settings.get('palantir.handlers',
