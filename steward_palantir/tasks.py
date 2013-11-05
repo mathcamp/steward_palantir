@@ -51,7 +51,7 @@ def prune():
 @celery.task(base=StewardTask)
 def run_check(check_name):
     """ Run a palantir check """
-    with lock.inline("palantir_check_%s" % check_name, expire=120, timeout=120):
+    with lock.inline("palantir_check_%s" % check_name, expires=120, timeout=120):
         task = run_check
 
         if task.db.query(CheckDisabled).filter_by(name=check_name).first():
