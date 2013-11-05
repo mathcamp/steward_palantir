@@ -204,7 +204,6 @@ def include_tasks(config):
 def includeme(config):
     """ Configure the app """
     settings = config.get_settings()
-    config.add_acl_from_settings('palantir')
 
     # Add the handlers
     config.registry.palantir_handlers = load_handlers(settings)
