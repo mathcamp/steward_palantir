@@ -1,6 +1,6 @@
 <div class="row">
   <div class="span2">
-    <input ng-model="search.name" class="search-query" style="width:100%" placeholder="Search" type="text" />
+    <input ng-model="search.name" class="search-query" placeholder="Search" type="text" />
   </div>
   <div class="span9 offset1" ng-if="_.size(getSelectedChecks()) > 0">
     <button class="btn" ng-class="allEnabled() ? 'btn-warning' : 'btn-success'" ng-click="toggleAll()">{{ allEnabled() ? 'Disable' : 'Enable' }}</button>
@@ -16,7 +16,7 @@
           </th>
           <th>Check</th>
           <th>Target</th>
-          <th>Command</th>
+          <th class="hidden-phone">Command</th>
         </tr>
       </thead>
       <tbody>
@@ -26,7 +26,7 @@
           </td>
           <td><a href="#/check/{{ check.name }}" ng-class="check.enabled ? '' : 'muted'">{{ check.name }}{{ check.enabled ? '' : ' (disabled)' }}</a></td>
           <td>{{ check.target ? check.target : '__global__' }}</td>
-          <td>{{ check.command.cmd }}</td>
+          <td class="hidden-phone">{{ check.command.cmd }}</td>
         </tr>
       </tbody>
     </table>

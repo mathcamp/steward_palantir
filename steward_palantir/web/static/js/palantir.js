@@ -50,6 +50,7 @@ function BaseController($scope, $rootScope, $http, $modal) {
   $scope._ = _;
   $scope.ROUTE = ROUTE;
   $scope.STATIC = STATIC;
+  $scope.isMobile = jQuery.browser.mobile;
   $scope.showDetail = function(check, event) {
 
     var fetchMeta = function() {
@@ -281,6 +282,8 @@ function CheckController($scope, $route, $http) {
   };
 }
 
-function CheckDetailController($scope) {
-
+function CheckDetailController($scope, $modalInstance) {
+  $scope.close = function() {
+    $modalInstance.dismiss('x');
+  };
 }

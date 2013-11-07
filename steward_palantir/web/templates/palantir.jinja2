@@ -15,6 +15,11 @@ table.clickable tbody tr:hover td {
 .nav-tabs a:hover {
   cursor: pointer;
 }
+
+#container {
+  margin-left: -20px;
+  margin-right: -20px;
+}
 </style>
 {% endblock %}
 {% block nav_top %}
@@ -30,11 +35,12 @@ table.clickable tbody tr:hover td {
 {% endblock %}
 
 {% block scripts %}
+<script type='text/javascript'>
+  var STATIC = {{ "steward_palantir.web:static/" | static_url | tojson | safe }};
+  var ROUTE = {{ request.route_map('palantir.*') | tojson | safe }};
+</script>
+<script src='{{ "steward_palantir.web:static/js/detectmobilebrowser.js" | static_url }}'></script>
 <script src='//cdnjs.cloudflare.com/ajax/libs/moment.js/2.1.0/moment.min.js'></script>
 <script src='{{ "steward_palantir.web:static/js/truncate.js" | static_url }}'></script>
 <script src='{{ "steward_palantir.web:static/js/palantir.js" | static_url }}'></script>
-<script type='text/javascript'>
-var STATIC = {{ "steward_palantir.web:static/" | static_url | tojson | safe }};
-var ROUTE = {{ request.route_map('palantir.*') | tojson | safe }};
-</script>
 {% endblock %}
