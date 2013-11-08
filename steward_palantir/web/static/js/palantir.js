@@ -50,7 +50,7 @@ function BaseController($scope, $rootScope, $http, $modal) {
   $scope._ = _;
   $scope.ROUTE = ROUTE;
   $scope.STATIC = STATIC;
-  $scope.isMobile = jQuery.browser.mobile;
+  $scope.DEVICE = getDevice();
   $scope.showDetail = function(check, event) {
 
     var fetchMeta = function() {

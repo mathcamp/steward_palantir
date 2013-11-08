@@ -33,8 +33,23 @@ table.clickable tbody tr:hover td {
 <script type='text/javascript'>
   var STATIC = {{ "steward_palantir.web:static/" | static_url | tojson | safe }};
   var ROUTE = {{ request.route_map('palantir.*') | tojson | safe }};
+  function getDevice() {
+      var envs = ['phone', 'tablet', 'desktop'];
+
+      $el = $('<div>');
+      $el.appendTo($('body'));
+
+      for (var i = envs.length - 1; i >= 0; i--) {
+          var env = envs[i];
+
+          $el.addClass('hidden-'+env);
+          if ($el.is(':hidden')) {
+              $el.remove();
+              return env;
+          }
+      };
+  }
 </script>
-<script src='{{ "steward_palantir.web:static/js/detectmobilebrowser.js" | static_url }}'></script>
 <script src='//cdnjs.cloudflare.com/ajax/libs/moment.js/2.1.0/moment.min.js'></script>
 <script src='{{ "steward_palantir.web:static/js/truncate.js" | static_url }}'></script>
 <script src='{{ "steward_palantir.web:static/js/palantir.js" | static_url }}'></script>
