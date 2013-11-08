@@ -32,7 +32,7 @@
       <thead>
         <tr>
           <th>Minion</th>
-          <th>Output</th>
+          <th class="hidden-phone">Output</th>
           <th>Last Run</th>
           <th>Action</th>
         </tr>
@@ -40,7 +40,7 @@
       <tbody>
         <tr ng-repeat="result in check.results" ng-class="status(result.retcode)" ng-click="showDetail(result, $event)">
           <td><a href="#/minion/{{ result.minion }}">{{ result.minion }}</a></td>
-          <td>{{ result.stdout | characters:50 :true }}</td>
+          <td class="hidden-phone">{{ result.stdout | characters:50 :true }}</td>
           <td>{{ 1000*result.last_run | fromNow }}</td>
           <td><a href="" class="btn" ng-class="result.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggle($index)">{{ result.enabled ? 'Disable' : 'Enable' }}</a></td>
         </tr>
