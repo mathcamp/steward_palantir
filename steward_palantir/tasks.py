@@ -105,6 +105,7 @@ def run_check(check_name):
                 .filter_by(check=check_name, minion=minion).first()
             if check_result is None:
                 check_result = CheckResult(minion, check.name)
+                check_result.old_result = CheckResult(minion, check.name)
                 task.db.add(check_result)
             else:
                 check_result.old_result = copy.copy(check_result)

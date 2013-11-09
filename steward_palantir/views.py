@@ -179,6 +179,7 @@ def do_toggle_minion(request):
     minions = request.param('minions', type=list)
     enabled = request.param('enabled', type=bool)
     toggle_minion(minions, enabled)
+    return request.response
 
 
 @view_config(route_name='palantir_toggle_minion_check',

@@ -159,6 +159,7 @@ class CheckResult(Base):
         self.alert = 0
         self.retcode = 0
         self.old_result = None
+        self.last_run = datetime.fromtimestamp(0)
 
     def __json__(self, request=None):
         return {
