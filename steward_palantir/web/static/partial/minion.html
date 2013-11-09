@@ -17,7 +17,7 @@
       </thead>
       <tbody>
         <tr ng-repeat="check in minion.checks" ng-class="status(check.retcode)" ng-click="showDetail(check, $event)">
-          <td><a href="#/check/{{ check.check }}">{{ check.check }}</a></td>
+          <td><a href="#/check/{{ check.check }}" ng-class="checks[check.check].enabled ? '' : 'muted'">{{ check.check }}{{ checks[check.check].enabled ? '' : ' (disabled)' }}</a></td>
           <td class="hidden-phone">{{ check.stdout | characters:50 :true }}</td>
           <td>{{ 1000*check.last_run | fromNow }}</td>
           <td><a href="" class="btn" ng-class="check.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggle($index)">{{ check.enabled ? 'Disable' : 'Enable' }}</a></td>

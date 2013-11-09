@@ -25,9 +25,9 @@
           </td>
           <td><a href="#/minion/{{ minion.name }}" ng-class="minion.enabled ? '' : 'muted'">{{ minion.name }}{{ minion.enabled ? '' : ' (disabled)' }}</a></td>
           <td>
-            <span ng-if="checks[minion.name]">
-              <span ng-repeat="result in checks[minion.name]">
-                <a href="#/check/{{ result.check }}" ng-class="result.enabled && minion.enabled ? '' : 'muted'">{{ result.check }}</a>{{ $last ? '' : ',' }}
+            <span ng-if="results[minion.name]">
+              <span ng-repeat="result in results[minion.name]">
+                <a href="#/check/{{ result.check }}" ng-class="result.enabled && minion.enabled && checks[result.check].enabled ? '' : 'muted'">{{ result.check }}</a>{{ $last ? '' : ',' }}
               </span>
             </span>
           </td>

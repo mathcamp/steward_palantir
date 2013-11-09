@@ -100,6 +100,7 @@ function BaseController($scope, $rootScope, $http, $modal) {
 
 function MinionsController($scope, $http, $filter) {
   $scope.minions = null;
+  $scope.results = {};
   $scope.checks = {};
 
   $http.post(ROUTE.palantir_list_minions).success(function(data) {
@@ -107,6 +108,9 @@ function MinionsController($scope, $http, $filter) {
   });
 
   $http.post(ROUTE.palantir_list_minion_checks).success(function(data) {
+    $scope.results = data;
+  });
+  $http.post(ROUTE.palantir_list_checks).success(function(data) {
     $scope.checks = data;
   });
 
@@ -144,8 +148,12 @@ function MinionsController($scope, $http, $filter) {
 
 function MinionController($scope, $route, $http) {
   $scope.minion = {};
+  $scope.checks = {};
   $http.post(ROUTE.palantir_get_minion, {minion: $route.current.params.minion}).success(function(data) {
     $scope.minion = data;
+  });
+  $http.post(ROUTE.palantir_list_checks).success(function(data) {
+    $scope.checks = data;
   });
 
   $scope.status = function(code) {
@@ -251,8 +259,12 @@ function ChecksController($scope, $http, $filter) {
 
 function CheckController($scope, $route, $http) {
   $scope.check = {};
+  $scope.minions = {};
   $http.post(ROUTE.palantir_get_check, {check: $route.current.params.check}).success(function(data) {
     $scope.check = data;
+  });
+  $http.post(ROUTE.palantir_list_minions).success(function(data) {
+    $scope.minions = data;
   });
 
   $scope.status = function(code) {
