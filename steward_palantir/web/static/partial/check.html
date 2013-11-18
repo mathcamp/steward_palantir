@@ -39,7 +39,7 @@
       </thead>
       <tbody>
         <tr ng-repeat="result in check.results" ng-class="status(result.retcode)" ng-click="showDetail(result, $event)">
-          <td><a href="#/minion/{{ result.minion }}" ng-class="minions[result.minion].enabled ? '' : 'muted'">{{ result.minion }}{{ minions[result.minion].enabled ? '' : ' (disabled)' }}</a></td>
+          <td><a href="#/minion/{{ result.minion }}" ng-class="enabled(result.minion) ? '' : 'muted'">{{ result.minion }}{{ enabled(result.minion) ? '' : ' (disabled)' }}</a></td>
           <td class="hidden-phone">{{ result.stdout | characters:50 :true }}</td>
           <td>{{ 1000*result.last_run | fromNow }}</td>
           <td><a href="" class="btn" ng-class="result.enabled ? 'btn-warning' : 'btn-success'" ng-click="toggle($index)">{{ result.enabled ? 'Disable' : 'Enable' }}</a></td>

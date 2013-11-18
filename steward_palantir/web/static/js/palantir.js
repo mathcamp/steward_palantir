@@ -259,7 +259,7 @@ function ChecksController($scope, $http, $filter) {
 
 function CheckController($scope, $route, $http) {
   $scope.check = {};
-  $scope.minions = {};
+  $scope.minions = null;
   $http.post(ROUTE.palantir_get_check, {check: $route.current.params.check}).success(function(data) {
     $scope.check = data;
   });
@@ -275,6 +275,13 @@ function CheckController($scope, $route, $http) {
     } else {
       return 'error';
     }
+  };
+
+  $scope.enabled = function(minion) {
+    if ($scope.minions === null) {
+      return true;
+    }
+    return $scope.minions[minion].enabled;
   };
 
   $scope.toggleCheck = function() {
