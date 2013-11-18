@@ -148,7 +148,7 @@ function MinionsController($scope, $http, $filter) {
 
 function MinionController($scope, $route, $http) {
   $scope.minion = {};
-  $scope.checks = {};
+  $scope.checks = null;
   $http.post(ROUTE.palantir_get_minion, {minion: $route.current.params.minion}).success(function(data) {
     $scope.minion = data;
   });
@@ -164,6 +164,13 @@ function MinionController($scope, $route, $http) {
     } else {
       return 'error';
     }
+  };
+
+  $scope.enabled = function(check) {
+    if ($scope.checks === null) {
+      return true;
+    }
+    return $scope.checks[check].enabled;
   };
 
   $scope.toggleMinion = function() {
