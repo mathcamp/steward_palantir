@@ -28,7 +28,7 @@ def prune():
         .filter(Alert.check.notin_(check_names))\
         .delete(synchronize_session=False)
 
-    minion_list = salt_key('list_keys')
+    minion_list = salt_key('list_keys')['minions']
     minions = set(minion_list)
     old_minions = set(itertools.chain.from_iterable(
         task.db.query(CheckResult.minion)
