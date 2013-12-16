@@ -6,6 +6,7 @@ from pyramid.view import view_config
 
 from .models import CheckDisabled, MinionDisabled, CheckResult, Alert
 from .tasks import toggle_minion, resolve_alerts, run_check, prune
+from steward import argify
 
 
 LOG = logging.getLogger(__name__)
@@ -13,7 +14,8 @@ LOG = logging.getLogger(__name__)
 
 @view_config(route_name='palantir_run_check', renderer='json',
              permission='palantir_write')
-def do_run_check(request):
+@argify
+def do_run_check(request, name):
     """
     Run a check
 
@@ -23,8 +25,7 @@ def do_run_check(request):
         The name of the check to run
 
     """
-    check_name = request.param('name')
-    return run_check(check_name)
+    return run_check(name)
 
 
 @view_config(route_name='palantir_list_checks', renderer='json',
@@ -43,49 +44,31 @@ def list_checks(request):
 
 @view_config(route_name='palantir_get_check', renderer='json',
              permission='palantir_read')
-def get_check(request):
+@argify
+def get_check(request, check):
     """ Get detailed data about a check """
-    name = request.param('check')
     checks = request.registry.palantir_checks
-    data = checks[name].__json__(request)
+    data = checks[check].__json__(request)
     data['enabled'] = not bool(request.db.query(CheckDisabled)
-                               .filter_by(name=name).first())
-    data['results'] = request.db.query(CheckResult).filter_by(check=name).all()
+                               .filter_by(name=check).first())
+    data['results'] = request.db.query(CheckResult).filter_by(check=check).all()
 
     return data
 
 
 @view_config(route_name='palantir_get_minion_check', renderer='json',
              permission='palantir_read')
-def get_minion_check(request):
-    """
-    Get the current status of a check
-
-    Parameters
-    ----------
-    minion : str
-    check : str
-
-    """
-    minion = request.param('minion')
-    check = request.param('check')
+@argify
+def get_minion_check(request, minion, check):
+    """ Get the current status of a check """
     return request.db.query(CheckResult).filter_by(minion=minion,
                                                    check=check).one()
 
 
 @view_config(route_name='palantir_toggle_check', permission='palantir_write')
-def toggle_check(request):
-    """
-    Enable/disable a check
-
-    Parameters
-    ----------
-    checks : list
-    enabled : bool
-
-    """
-    checks = request.param('checks', type=list)
-    enabled = request.param('enabled', type=bool)
+@argify(checks=list, enabled=bool)
+def toggle_check(request, checks, enabled):
+    """ Enable/disable a check """
     for check in checks:
         if enabled:
             request.db.query(CheckDisabled).filter_by(name=check).delete()
@@ -103,18 +86,17 @@ def list_alerts(request):
 
 @view_config(route_name='palantir_get_alert', renderer='json',
              permission='palantir_read')
-def get_alert(request):
+@argify
+def get_alert(request, minion, check):
     """ List all current alerts """
-    minion = request.param('minion')
-    check = request.param('check')
     return request.db.query(Alert)\
         .filter_by(check=check, minion=minion).first()
 
 
 @view_config(route_name='palantir_resolve_alert', permission='palantir_write')
-def do_resolve_alerts(request):
+@argify(alerts=list)
+def do_resolve_alerts(request, alerts):
     """ Mark an alert as 'resolved' """
-    alerts = request.param('alerts', type=list)
     resolve_alerts(alerts, unauthenticated_userid(request))
     return request.response
 
@@ -143,9 +125,9 @@ def list_minions(request):
 
 
 @view_config(route_name='palantir_delete_minion', permission='palantir_write')
-def delete_minion(request):
+@argify
+def delete_minion(request, minion):
     """ Delete a minion and its data """
-    minion = request.param('minion')
     request.db.query(MinionDisabled).filter_by(name=minion).delete()
     request.db.query(CheckResult).filter_by(minion=minion).delete()
     request.db.query(Alert).filter_by(minion=minion).delete()
@@ -154,9 +136,9 @@ def delete_minion(request):
 
 @view_config(route_name='palantir_get_minion', renderer='json',
              permission='palantir_read')
-def get_minion(request):
+@argify
+def get_minion(request, minion):
     """ Get some data about a minion """
-    minion = request.param('minion')
     data = {'name': minion}
     results = request.db.query(CheckResult).filter_by(minion=minion).all()
     data['checks'] = results
@@ -166,38 +148,18 @@ def get_minion(request):
 
 
 @view_config(route_name='palantir_toggle_minion', permission='palantir_write')
-def do_toggle_minion(request):
-    """
-    Enable/disable a minion
-
-    Parameters
-    ----------
-    minions : list
-    enabled : bool
-
-    """
-    minions = request.param('minions', type=list)
-    enabled = request.param('enabled', type=bool)
+@argify(minions=list, enabled=bool)
+def do_toggle_minion(request, minions, enabled):
+    """ Enable/disable a minion """
     toggle_minion(minions, enabled)
     return request.response
 
 
 @view_config(route_name='palantir_toggle_minion_check',
              permission='palantir_write')
-def toggle_minion_check(request):
-    """
-    Enable/disable a check on a specific minion
-
-    Parameters
-    ----------
-    minion : str
-    checks : list
-    enabled : bool
-
-    """
-    minion = request.param('minion')
-    checks = request.param('checks', type=list)
-    enabled = request.param('enabled', type=bool)
+@argify(checks=list, enabled=bool)
+def toggle_minion_check(request, minion, checks, enabled):
+    """ Enable/disable a check on a specific minion """
     for check in checks:
         result = request.db.query(CheckResult).filter_by(check=check,
                                                          minion=minion).first()
