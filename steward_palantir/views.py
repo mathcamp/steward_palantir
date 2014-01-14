@@ -6,7 +6,7 @@ from pyramid.view import view_config
 
 from .models import CheckDisabled, MinionDisabled, CheckResult, Alert
 from .tasks import toggle_minion, resolve_alerts, run_check, prune
-from steward import argify
+from pyramid_duh import argify
 
 
 LOG = logging.getLogger(__name__)
