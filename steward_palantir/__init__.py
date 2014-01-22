@@ -39,13 +39,13 @@ def iterate_files(filedir, loaders):
 
 def load_yaml_checks(filepath):
     """ Load checks from yaml files """
-    with open(filepath, 'r') as infile:
-        try:
+    try:
+        with open(filepath, 'r') as infile:
             file_data = yaml.safe_load(infile)
             for name, data in file_data.iteritems():
                 yield Check(name, **data)
-        except yaml.scanner.ScannerError:
-            raise ValueError("Error loading Palantir file '%s'" % filepath)
+    except (yaml.scanner.ScannerError, yaml.parser.ParserError):
+        LOG.exception("Could not load '%s'", filepath)
 
 
 def load_python_checks(filepath):
@@ -114,7 +114,7 @@ def include_client(client):
                                 checks)
         client.set_autocomplete('palantir.status', minions + checks)
         client.set_autocomplete('palantir.resolve', minions + checks)
-    except:
+    except Exception:
         # autocomplete isn't mandatory
         LOG.warn("Failed to load palantir autocomplete")
 
@@ -134,11 +134,13 @@ def load_checks(settings):
     required_meta = set(aslist(settings.get('palantir.required_meta', [])))
     for check in iterate_files(checks_dir, DEFAULT_LOADERS):
         if check.name in checks:
-            raise ValueError("Duplicate Palantir check '%s'" % check.name)
+            LOG.error("Duplicate Palantir check '%s'", check.name)
+            continue
         missing_meta = required_meta - set(check.meta.keys())
         if missing_meta:
-            raise ValueError("Check '%s' is missing meta field(s) '%s'" %
-                             (check.name, ', '.join(missing_meta)))
+            LOG.error("Check '%s' is missing meta field(s) '%s'", check.name,
+                      ', '.join(missing_meta))
+            continue
         checks[check.name] = check
     return checks
 
